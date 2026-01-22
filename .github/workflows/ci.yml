@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: macOS (ARM64)
+          - os: macos-13
+            name: macOS (x64)
+          - os: ubuntu-24.04
+            name: Linux (x64)
+          - os: windows-latest
+            name: Windows (x64)
+
+    runs-on: ${{ matrix.os }}
+    name: Build - ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download dependencies
+        run: node scripts/download-deps.mjs
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test CLI
+        run: ./build/mystral --version
+        shell: bash
+
+      - name: Test headless render
+        run: ./build/mystral run examples/triangle.js --no-sdl --frames 1
+        shell: bash
