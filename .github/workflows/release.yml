@@ -1,10 +1,12 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   # =============================================================================
@@ -16,43 +18,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS ARM64 - QuickJS + wgpu (default)
+          # macOS ARM64 - all configurations
           - os: macos-15
             arch: arm64
             js_engine: quickjs
             webgpu: wgpu
             name: macOS-arm64-quickjs-wgpu
-          # macOS ARM64 - V8 + wgpu
           - os: macos-15
             arch: arm64
             js_engine: v8
             webgpu: wgpu
             name: macOS-arm64-v8-wgpu
-          # macOS ARM64 - JSC + wgpu
           - os: macos-15
             arch: arm64
             js_engine: jsc
             webgpu: wgpu
             name: macOS-arm64-jsc-wgpu
-          # macOS ARM64 - QuickJS + Dawn
           - os: macos-15
             arch: arm64
             js_engine: quickjs
             webgpu: dawn
             name: macOS-arm64-quickjs-dawn
-          # macOS ARM64 - V8 + Dawn
           - os: macos-15
             arch: arm64
             js_engine: v8
             webgpu: dawn
             name: macOS-arm64-v8-dawn
-          # macOS ARM64 - JSC + Dawn
           - os: macos-15
             arch: arm64
             js_engine: jsc
             webgpu: dawn
             name: macOS-arm64-jsc-dawn
-          # macOS x64 - JSC + Dawn only (x64 Mac is legacy)
+          # macOS x64 - JSC + Dawn only (legacy platform)
           - os: macos-15-intel
             arch: x64
             js_engine: jsc
@@ -100,7 +97,6 @@ jobs:
       - name: Configure CMake
         run: |
           CMAKE_ARGS="-B build -DCMAKE_BUILD_TYPE=Release"
-          # JS Engine
           if [ "${{ matrix.js_engine }}" == "quickjs" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_QUICKJS=ON -DMYSTRAL_USE_V8=OFF -DMYSTRAL_USE_JSC=OFF"
           elif [ "${{ matrix.js_engine }}" == "v8" ]; then
@@ -108,13 +104,11 @@ jobs:
           elif [ "${{ matrix.js_engine }}" == "jsc" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_QUICKJS=OFF -DMYSTRAL_USE_V8=OFF -DMYSTRAL_USE_JSC=ON"
           fi
-          # WebGPU backend
           if [ "${{ matrix.webgpu }}" == "wgpu" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_WGPU=ON -DMYSTRAL_USE_DAWN=OFF"
           elif [ "${{ matrix.webgpu }}" == "dawn" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_WGPU=OFF -DMYSTRAL_USE_DAWN=ON"
           fi
-          echo "Running: cmake $CMAKE_ARGS"
           cmake $CMAKE_ARGS
 
       - name: Build
@@ -128,7 +122,6 @@ jobs:
           mkdir -p artifacts
           cp build/mystral artifacts/
           cp build/libmystral-runtime.a artifacts/ || true
-          # Include SDL3 framework for distribution
           if [ -d "third_party/sdl3/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework" ]; then
             cp -R third_party/sdl3/SDL3.xcframework/macos-arm64_x86_64/SDL3.framework artifacts/
           fi
@@ -149,19 +142,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux x64 - QuickJS + wgpu (default)
           - js_engine: quickjs
             webgpu: wgpu
             name: linux-x64-quickjs-wgpu
-          # Linux x64 - V8 + wgpu
           - js_engine: v8
             webgpu: wgpu
             name: linux-x64-v8-wgpu
-          # Linux x64 - QuickJS + Dawn
           - js_engine: quickjs
             webgpu: dawn
             name: linux-x64-quickjs-dawn
-          # Linux x64 - V8 + Dawn
           - js_engine: v8
             webgpu: dawn
             name: linux-x64-v8-dawn
@@ -180,22 +169,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake \
-            build-essential \
-            libx11-dev \
-            libxext-dev \
-            libxrandr-dev \
-            libxi-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libwayland-dev \
-            libxkbcommon-dev \
-            libegl-dev \
-            libgles-dev \
-            libcurl4-openssl-dev \
-            zlib1g-dev \
-            libfontconfig1-dev \
-            p7zip-full
+            cmake build-essential libx11-dev libxext-dev libxrandr-dev \
+            libxi-dev libxinerama-dev libxcursor-dev libwayland-dev \
+            libxkbcommon-dev libegl-dev libgles-dev libcurl4-openssl-dev \
+            zlib1g-dev libfontconfig1-dev p7zip-full
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -234,19 +211,16 @@ jobs:
       - name: Configure CMake
         run: |
           CMAKE_ARGS="-B build -DCMAKE_BUILD_TYPE=Release"
-          # JS Engine
           if [ "${{ matrix.js_engine }}" == "quickjs" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_QUICKJS=ON -DMYSTRAL_USE_V8=OFF -DMYSTRAL_USE_JSC=OFF"
           elif [ "${{ matrix.js_engine }}" == "v8" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_QUICKJS=OFF -DMYSTRAL_USE_V8=ON -DMYSTRAL_USE_JSC=OFF"
           fi
-          # WebGPU backend
           if [ "${{ matrix.webgpu }}" == "wgpu" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_WGPU=ON -DMYSTRAL_USE_DAWN=OFF"
           elif [ "${{ matrix.webgpu }}" == "dawn" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_WGPU=OFF -DMYSTRAL_USE_DAWN=ON"
           fi
-          echo "Running: cmake $CMAKE_ARGS"
           cmake $CMAKE_ARGS
 
       - name: Build
@@ -260,7 +234,6 @@ jobs:
           mkdir -p artifacts
           cp build/mystral artifacts/
           cp build/libmystral-runtime.a artifacts/ || true
-          # Include SDL3 shared library
           cp third_party/sdl3/installed/lib/libSDL3.so* artifacts/ || true
           cd artifacts && zip -r ../mystral-${{ matrix.name }}.zip .
 
@@ -279,19 +252,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows x64 - QuickJS + wgpu
           - js_engine: quickjs
             webgpu: wgpu
             name: windows-x64-quickjs-wgpu
-          # Windows x64 - V8 + wgpu
           - js_engine: v8
             webgpu: wgpu
             name: windows-x64-v8-wgpu
-          # Windows x64 - QuickJS + Dawn
           - js_engine: quickjs
             webgpu: dawn
             name: windows-x64-quickjs-dawn
-          # Windows x64 - V8 + Dawn
           - js_engine: v8
             webgpu: dawn
             name: windows-x64-v8-dawn
@@ -336,7 +305,6 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
-          # Use static triplet for wgpu (static CRT), dynamic for Dawn
           if ("${{ matrix.webgpu }}" -eq "wgpu") {
             vcpkg install curl:x64-windows-static zlib:x64-windows-static
           } else {
@@ -347,15 +315,11 @@ jobs:
       - name: Configure CMake
         run: |
           $CMAKE_ARGS = @("-B", "build", "-DCMAKE_BUILD_TYPE=Release")
-
-          # JS Engine
           if ("${{ matrix.js_engine }}" -eq "quickjs") {
             $CMAKE_ARGS += "-DMYSTRAL_USE_QUICKJS=ON", "-DMYSTRAL_USE_V8=OFF", "-DMYSTRAL_USE_JSC=OFF"
           } elseif ("${{ matrix.js_engine }}" -eq "v8") {
             $CMAKE_ARGS += "-DMYSTRAL_USE_QUICKJS=OFF", "-DMYSTRAL_USE_V8=ON", "-DMYSTRAL_USE_JSC=OFF"
           }
-
-          # WebGPU backend
           if ("${{ matrix.webgpu }}" -eq "wgpu") {
             $CMAKE_ARGS += "-DMYSTRAL_USE_WGPU=ON", "-DMYSTRAL_USE_DAWN=OFF"
             $CMAKE_ARGS += "-DVCPKG_TARGET_TRIPLET=x64-windows-static"
@@ -363,10 +327,7 @@ jobs:
           } elseif ("${{ matrix.webgpu }}" -eq "dawn") {
             $CMAKE_ARGS += "-DMYSTRAL_USE_WGPU=OFF", "-DMYSTRAL_USE_DAWN=ON"
           }
-
           $CMAKE_ARGS += "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-
-          Write-Host "Running: cmake $CMAKE_ARGS"
           cmake @CMAKE_ARGS
 
       - name: Build
@@ -382,7 +343,6 @@ jobs:
           mkdir -p artifacts
           cp build/Release/mystral.exe artifacts/ || cp build/mystral.exe artifacts/
           cp build/Release/mystral-runtime.lib artifacts/ || cp build/mystral-runtime.lib artifacts/ || true
-          # Include SDL3 DLL
           cp third_party/sdl3/bin/SDL3.dll artifacts/ || true
           cd artifacts && 7z a ../mystral-${{ matrix.name }}.zip .
 
@@ -393,10 +353,10 @@ jobs:
           path: mystral-${{ matrix.name }}.zip
 
   # =============================================================================
-  # Summary Job - Always runs to show all artifacts
+  # Create Release
   # =============================================================================
-  summary:
-    name: Build Summary
+  create-release:
+    name: Create Release
     runs-on: ubuntu-latest
     needs: [build-macos, build-linux, build-windows]
     if: always()
@@ -407,54 +367,91 @@ jobs:
         with:
           path: artifacts
 
-      - name: List all artifacts
+      - name: Prepare release files
         run: |
-          echo "## Build Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | JS Engine | WebGPU | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-
-          # Check each expected artifact
-          for config in \
-            "macOS-arm64-quickjs-wgpu" \
-            "macOS-arm64-v8-wgpu" \
-            "macOS-arm64-jsc-wgpu" \
-            "macOS-arm64-quickjs-dawn" \
-            "macOS-arm64-v8-dawn" \
-            "macOS-arm64-jsc-dawn" \
-            "macOS-x64-jsc-dawn" \
-            "linux-x64-quickjs-wgpu" \
-            "linux-x64-v8-wgpu" \
-            "linux-x64-quickjs-dawn" \
-            "linux-x64-v8-dawn" \
-            "windows-x64-quickjs-wgpu" \
-            "windows-x64-v8-wgpu" \
-            "windows-x64-quickjs-dawn" \
-            "windows-x64-v8-dawn"
-          do
-            # Parse config name
-            PLATFORM=$(echo $config | cut -d'-' -f1-2)
-            JS_ENGINE=$(echo $config | cut -d'-' -f3)
-            WEBGPU=$(echo $config | cut -d'-' -f4)
-
-            if [ -d "artifacts/mystral-$config" ]; then
-              echo "| $PLATFORM | $JS_ENGINE | $WEBGPU | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| $PLATFORM | $JS_ENGINE | $WEBGPU | :x: |" >> $GITHUB_STEP_SUMMARY
+          mkdir -p release
+          for dir in artifacts/mystral-*/; do
+            name=$(basename "$dir")
+            if [ -f "$dir/$name.zip" ]; then
+              cp "$dir/$name.zip" release/
             fi
           done
+          ls -la release/
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Artifact Details" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          ls -la artifacts/ 2>/dev/null || echo "No artifacts found"
-          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Get tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Report build status
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: MystralNative ${{ steps.tag.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.tag, 'alpha') || contains(steps.tag.outputs.tag, 'beta') || contains(steps.tag.outputs.tag, 'rc') }}
+          body: |
+            ## MystralNative ${{ steps.tag.outputs.tag }}
+
+            A lightweight, cross-platform runtime for JavaScript games using WebGPU.
+
+            ### Downloads
+
+            **macOS (Apple Silicon - ARM64):**
+            | JS Engine | WebGPU Backend | Download |
+            |-----------|----------------|----------|
+            | QuickJS | wgpu | `mystral-macOS-arm64-quickjs-wgpu.zip` |
+            | V8 | wgpu | `mystral-macOS-arm64-v8-wgpu.zip` |
+            | JSC | wgpu | `mystral-macOS-arm64-jsc-wgpu.zip` |
+            | QuickJS | Dawn | `mystral-macOS-arm64-quickjs-dawn.zip` |
+            | V8 | Dawn | `mystral-macOS-arm64-v8-dawn.zip` |
+            | JSC | Dawn | `mystral-macOS-arm64-jsc-dawn.zip` |
+
+            **macOS (Intel - x64):**
+            | JS Engine | WebGPU Backend | Download |
+            |-----------|----------------|----------|
+            | JSC | Dawn | `mystral-macOS-x64-jsc-dawn.zip` |
+
+            **Linux (x64):**
+            | JS Engine | WebGPU Backend | Download |
+            |-----------|----------------|----------|
+            | QuickJS | wgpu | `mystral-linux-x64-quickjs-wgpu.zip` |
+            | V8 | wgpu | `mystral-linux-x64-v8-wgpu.zip` |
+            | QuickJS | Dawn | `mystral-linux-x64-quickjs-dawn.zip` |
+            | V8 | Dawn | `mystral-linux-x64-v8-dawn.zip` |
+
+            **Windows (x64):**
+            | JS Engine | WebGPU Backend | Download |
+            |-----------|----------------|----------|
+            | QuickJS | wgpu | `mystral-windows-x64-quickjs-wgpu.zip` |
+            | V8 | wgpu | `mystral-windows-x64-v8-wgpu.zip` |
+            | QuickJS | Dawn | `mystral-windows-x64-quickjs-dawn.zip` |
+            | V8 | Dawn | `mystral-windows-x64-v8-dawn.zip` |
+
+            ### Recommended Configurations
+
+            - **macOS**: `jsc-wgpu` (uses system JavaScriptCore, best performance)
+            - **Linux**: `quickjs-wgpu` (smallest binary, good performance)
+            - **Windows**: `v8-wgpu` (best JS performance)
+
+            ### Quick Start
+
+            ```bash
+            # Extract and run
+            unzip mystral-<platform>.zip
+            ./mystral run your-game.js
+            ```
+
+            See [README](https://github.com/mystralengine/mystralnative#readme) for full documentation.
+          files: |
+            artifacts/mystral-*/mystral-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
         run: |
-          TOTAL=$(ls -d artifacts/mystral-* 2>/dev/null | wc -l || echo 0)
-          EXPECTED=15
-          echo "Built $TOTAL of $EXPECTED configurations"
-          if [ "$TOTAL" -lt "$EXPECTED" ]; then
-            echo "::warning::Some builds failed. Check individual job logs for details."
-          fi
+          echo "## Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tag: ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          ls -la artifacts/mystral-*/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No artifacts" >> $GITHUB_STEP_SUMMARY
