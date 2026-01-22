@@ -880,6 +880,10 @@ endif()
 if(TARGET swc::swc)
     # Must be PUBLIC so dependents of the static runtime link SWC too.
     target_link_libraries(mystral-runtime PUBLIC swc::swc)
+    # SWC (Rust) on Windows needs these system libraries
+    if(WIN32)
+        target_link_libraries(mystral-runtime PUBLIC userenv ntdll)
+    endif()
 endif()
 
 # ============================================================================
@@ -892,8 +896,12 @@ if(NOT MYSTRAL_PLATFORM STREQUAL "ios" AND NOT MYSTRAL_PLATFORM STREQUAL "androi
 
     # On Linux, the GNU linker needs help finding zlib (curl's transitive dependency).
     # Use --copy-dt-needed-entries to pull in dependencies from shared libraries.
+    # Also allow multiple definitions because wgpu-native and swc both contain Rust runtime symbols.
     if(UNIX AND NOT APPLE)
-        target_link_options(mystral PRIVATE "LINKER:--copy-dt-needed-entries")
+        target_link_options(mystral PRIVATE
+            "LINKER:--copy-dt-needed-entries"
+            "LINKER:--allow-multiple-definition"
+        )
     endif()
 
     # Install CLI to bin directory
@@ -911,8 +919,12 @@ if(NOT MYSTRAL_PLATFORM STREQUAL "ios" AND NOT MYSTRAL_PLATFORM STREQUAL "androi
     target_link_libraries(embed-example PRIVATE mystral-runtime)
 
     # On Linux, the GNU linker needs help finding zlib (curl's transitive dependency).
+    # Also allow multiple definitions because wgpu-native and swc both contain Rust runtime symbols.
     if(UNIX AND NOT APPLE)
-        target_link_options(embed-example PRIVATE "LINKER:--copy-dt-needed-entries")
+        target_link_options(embed-example PRIVATE
+            "LINKER:--copy-dt-needed-entries"
+            "LINKER:--allow-multiple-definition"
+        )
     endif()
 endif()
 

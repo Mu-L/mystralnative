@@ -278,7 +278,7 @@ bool ModuleResolver::resolvePackage(const std::string& specifier,
         }
     }
 
-    return resolvePath(fs::path(packageRoot) / "index.js", packageRoot, mode, out, error);
+    return resolvePath((fs::path(packageRoot) / "index.js").string(), packageRoot, mode, out, error);
 }
 
 bool ModuleResolver::resolveAsFile(const std::string& path,
@@ -320,7 +320,7 @@ bool ModuleResolver::resolveAsDirectory(const std::string& path,
         return false;
     }
 
-    std::string pkgPath = fs::path(path) / "package.json";
+    std::string pkgPath = (fs::path(path) / "package.json").string();
     if (fileExists(pkgPath)) {
         PackageInfo pkg;
         std::string pkgError;
@@ -344,7 +344,7 @@ bool ModuleResolver::resolveAsDirectory(const std::string& path,
         return false;
     }
 
-    std::string indexPath = fs::path(path) / "index";
+    std::string indexPath = (fs::path(path) / "index").string();
     if (resolveAsFile(indexPath, mode, out, error)) {
         return true;
     }
@@ -403,7 +403,7 @@ bool ModuleResolver::loadPackageJson(const std::string& packageRoot,
         return true;
     }
 
-    std::string pkgPath = fs::path(packageRoot) / "package.json";
+    std::string pkgPath = (fs::path(packageRoot) / "package.json").string();
     std::string data;
     ResolvedPath resolvedPath;
     resolvedPath.path = pkgPath;
@@ -582,13 +582,13 @@ bool ModuleResolver::fileExists(const std::string& path) const {
 
 bool ModuleResolver::dirExists(const std::string& path) const {
     if (useBundle_) {
-        std::string pkgPath = fs::path(path) / "package.json";
+        std::string pkgPath = (fs::path(path) / "package.json").string();
         if (fileExists(pkgPath)) {
             return true;
         }
-        std::string indexJs = fs::path(path) / "index.js";
-        std::string indexMjs = fs::path(path) / "index.mjs";
-        std::string indexCjs = fs::path(path) / "index.cjs";
+        std::string indexJs = (fs::path(path) / "index.js").string();
+        std::string indexMjs = (fs::path(path) / "index.mjs").string();
+        std::string indexCjs = (fs::path(path) / "index.cjs").string();
         return fileExists(indexJs) || fileExists(indexMjs) || fileExists(indexCjs);
     }
     std::error_code ec;

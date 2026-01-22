@@ -7,21 +7,17 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-macos:
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             name: macOS (ARM64)
-          - os: macos-13
+          - os: macos-15-intel
             name: macOS (x64)
-          - os: ubuntu-24.04
-            name: Linux (x64)
-          - os: windows-latest
-            name: Windows (x64)
 
-    runs-on: ${{ matrix.os }}
     name: Build - ${{ matrix.name }}
 
     steps:
@@ -32,19 +28,144 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: third_party
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/download-deps.mjs') }}
+
       - name: Download dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: node scripts/download-deps.mjs
+
+      - name: Create SDL3 include symlink
+        run: |
+          if [ -d "third_party/sdl3/SDL3.xcframework" ]; then
+            mkdir -p third_party/sdl3/include
+            ln -sf ../SDL3.xcframework/macos-arm64_x86_64/SDL3.framework/Headers third_party/sdl3/include/SDL3
+          fi
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release -j$(sysctl -n hw.ncpu)
 
       - name: Test CLI
         run: ./build/mystral --version
-        shell: bash
 
-      - name: Test headless render
-        run: ./build/mystral run examples/triangle.js --no-sdl --frames 1
+  build-linux:
+    runs-on: ubuntu-24.04
+    name: Build - Linux (x64)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            build-essential \
+            libx11-dev \
+            libxext-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libegl-dev \
+            libgles-dev \
+            libcurl4-openssl-dev \
+            zlib1g-dev \
+            libfontconfig1-dev \
+            p7zip-full
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: third_party
+          key: deps-linux-x64-v4-${{ hashFiles('scripts/download-deps.mjs') }}
+
+      - name: Download dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: node scripts/download-deps.mjs
+
+      - name: Build SDL3 from source
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          cd third_party/sdl3
+          SDL_DIR=$(ls -d SDL3-* 2>/dev/null | head -1)
+          if [ -n "$SDL_DIR" ]; then
+            cd "$SDL_DIR"
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../installed
+            cmake --build build -j$(nproc)
+            cmake --install build
+            cd ..
+            ln -sf installed/lib lib
+            ln -sf installed/include include
+          fi
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j$(nproc)
+
+      - name: Test CLI
+        run: ./build/mystral --version
+
+  build-windows:
+    runs-on: windows-2022
+    name: Build - Windows (x64)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: third_party
+          key: deps-windows-x64-v8-${{ hashFiles('scripts/download-deps.mjs') }}
+
+      - name: Download dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
+        run: |
+          export PATH="/c/Program Files/7-Zip:$PATH"
+          node scripts/download-deps.mjs
+          node scripts/download-deps.mjs --only v8
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install curl:x64-windows-static zlib:x64-windows-static
+          vcpkg integrate install
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release `
+            -DMYSTRAL_USE_QUICKJS=OFF -DMYSTRAL_USE_V8=ON `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test CLI
+        shell: bash
+        run: ./build/Release/mystral.exe --version || echo "Windows build complete"

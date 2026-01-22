@@ -28,6 +28,9 @@ set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.mystral.gltfviewer.dev")
 set(MACOSX_BUNDLE_BUNDLE_VERSION "1")
 set(MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0")
 
+# Code signing configuration (optional - set your team ID here or via -DMYSTRAL_IOS_DEVELOPMENT_TEAM=XXXXXXXXXX)
+set(MYSTRAL_IOS_DEVELOPMENT_TEAM "" CACHE STRING "Apple Development Team ID for code signing (leave empty to configure in Xcode)")
+
 # Path to mystral-runtime build
 set(MYSTRAL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 set(MYSTRAL_BUILD_DIR "${MYSTRAL_ROOT}/build-ios" CACHE PATH "Path to mystral-runtime iOS build")
@@ -191,7 +194,6 @@ set_target_properties(MystralGLTFViewer PROPERTIES
     XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.mystral.gltfviewer.dev"
     XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Apple Development"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
-    XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "PQDRZ8Z37Q"
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     XCODE_ATTRIBUTE_INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents "YES"
     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
@@ -202,3 +204,13 @@ set_target_properties(MystralGLTFViewer PROPERTIES
     XCODE_ATTRIBUTE_VALID_ARCHS "arm64"
     XCODE_ATTRIBUTE_EXCLUDED_ARCHS "i386 x86_64"
 )
+
+# Set development team if provided (otherwise user configures in Xcode)
+if(MYSTRAL_IOS_DEVELOPMENT_TEAM)
+    set_target_properties(MystralGLTFViewer PROPERTIES
+        XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${MYSTRAL_IOS_DEVELOPMENT_TEAM}"
+    )
+    message(STATUS "iOS Development Team: ${MYSTRAL_IOS_DEVELOPMENT_TEAM}")
+else()
+    message(STATUS "iOS Development Team: Not set (configure in Xcode or pass -DMYSTRAL_IOS_DEVELOPMENT_TEAM=...)")
+endif()
