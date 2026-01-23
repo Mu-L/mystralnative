@@ -1,7 +1,13 @@
 {
-  "name": "@mystral/native-runtime",
-  "version": "0.1.0",
-  "description": "Native runtime for Mystral Engine games - WebGPU + SDL3 + V8/JSC",
+  "name": "mystralnative",
+  "version": "0.0.1",
+  "description": "Native runtime for Mystral Engine - WebGPU-first 3D game engine",
+  "license": "MIT",
+  "author": "Mystral Engine",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mystralengine/mystralnative"
+  },
   "scripts": {
     "deps:download": "node scripts/download-deps.mjs",
     "deps:download:wgpu": "node scripts/download-deps.mjs --only wgpu",
