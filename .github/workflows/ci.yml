@@ -157,9 +157,9 @@ jobs:
   # =============================================================================
   build-linux:
     if: ${{ inputs.build_filter == 'all' || inputs.build_filter == 'linux-only' }}
-    # Use Ubuntu 24.04 with zig for glibc 2.31 targeting
-    # Zig can cross-compile to older glibc versions without needing a container
-    runs-on: ubuntu-24.04
+    # Use Ubuntu 22.04 for glibc 2.35 compatibility
+    # This works on most Linux distros from the last 3+ years
+    runs-on: ubuntu-22.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -191,11 +191,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.13.0
 
       - name: Install system dependencies
         run: |
@@ -237,20 +232,6 @@ jobs:
         if: matrix.webgpu == 'dawn' && steps.cache-deps.outputs.cache-hit != 'true'
         run: node scripts/download-deps.mjs --only dawn
 
-      - name: Create zig compiler wrappers
-        run: |
-          # Create wrapper scripts for zig cc/c++ targeting glibc 2.31
-          mkdir -p /tmp/zig-wrapper
-          cat > /tmp/zig-wrapper/zig-cc << 'EOF'
-          #!/bin/bash
-          zig cc -target x86_64-linux-gnu.2.31 "$@"
-          EOF
-          cat > /tmp/zig-wrapper/zig-cxx << 'EOF'
-          #!/bin/bash
-          zig c++ -target x86_64-linux-gnu.2.31 "$@"
-          EOF
-          chmod +x /tmp/zig-wrapper/zig-cc /tmp/zig-wrapper/zig-cxx
-
       - name: Build SDL3 from source
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
@@ -258,9 +239,7 @@ jobs:
           SDL_DIR=$(ls -d SDL3-* 2>/dev/null | head -1)
           if [ -n "$SDL_DIR" ]; then
             cd "$SDL_DIR"
-            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../installed \
-              -DCMAKE_C_COMPILER=/tmp/zig-wrapper/zig-cc \
-              -DCMAKE_CXX_COMPILER=/tmp/zig-wrapper/zig-cxx
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../installed
             cmake --build build -j$(nproc)
             cmake --install build
             cd ..
@@ -271,8 +250,6 @@ jobs:
       - name: Configure CMake
         run: |
           CMAKE_ARGS="-B build -DCMAKE_BUILD_TYPE=Release"
-          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_C_COMPILER=/tmp/zig-wrapper/zig-cc"
-          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_COMPILER=/tmp/zig-wrapper/zig-cxx"
           # JS Engine
           if [ "${{ matrix.js_engine }}" == "quickjs" ]; then
             CMAKE_ARGS="$CMAKE_ARGS -DMYSTRAL_USE_QUICKJS=ON -DMYSTRAL_USE_V8=OFF -DMYSTRAL_USE_JSC=OFF"
