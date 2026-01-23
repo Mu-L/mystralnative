@@ -77,11 +77,16 @@ interface GLTFScene {
 
 // Skybox shader - renders the environment cube as background
 const skyboxShaderCode = /* wgsl */`
+    // Must match PBR shader's SceneUniforms layout for shared uniform buffer
     struct SceneUniforms {
         viewMatrix: mat4x4f,
         projectionMatrix: mat4x4f,
         cameraPosition: vec3f,
+        time: f32,
+        lightCount: u32,
         environmentIntensity: f32,
+        _pad2: f32,
+        _pad3: f32,
     }
 
     @group(0) @binding(0) var<uniform> scene: SceneUniforms;
@@ -362,8 +367,8 @@ const pbrShaderCode = /* wgsl */`
         // ==================================
         var color = ambientIBL + Lo + emissive;
 
-        // DEBUG: Uncomment one of these to visualize different components:
-        return vec4f(baseColor, 1.0);  // Base color only
+        // DEBUG: Uncomment ONE of these to visualize different components:
+        // return vec4f(baseColor, 1.0);  // Base color only
         // return vec4f(vec3f(metallic), 1.0);  // Metallic map (white=metal, black=dielectric)
         // return vec4f(vec3f(roughness), 1.0);  // Roughness map
         // return vec4f(N * 0.5 + 0.5, 1.0);  // Normal map
@@ -382,8 +387,8 @@ const pbrShaderCode = /* wgsl */`
 
 console.log("GLTF PBR Renderer - Starting");
 
-// Load the damaged helmet
-const helmetPath = "/Users/suyogsonwalkar/Projects/mystral/apps/mystral/dist/assets/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
+// Load the damaged helmet from examples/assets/
+const helmetPath = "./examples/assets/DamagedHelmet.glb";
 console.log("Loading: " + helmetPath);
 
 let gltf: GLTFData;
@@ -748,8 +753,9 @@ async function init() {
     const format = navigator.gpu.getPreferredCanvasFormat();
     ctx.configure({ device, format });
 
-    // Load HDR environment map (same as browser version)
-    const envMapPath = "/Users/suyogsonwalkar/Projects/mystral/apps/mystral/dist/assets/Skyboxes/sunny_rose_garden_2k.hdr";
+    // Load HDR environment map (optional - provide your own HDR file)
+    // Download HDR files from: https://polyhaven.com/hdris
+    const envMapPath = "./examples/assets/environment.hdr"; // Replace with your HDR file
     const envCube = await loadEnvironmentMap(device, envMapPath, 512);
 
     // Get the first mesh primitive

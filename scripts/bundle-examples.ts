@@ -12,26 +12,24 @@
 import { Glob } from "bun";
 import { join, basename } from "path";
 
-const EXAMPLES_DIR = join(import.meta.dir, "../examples/mystral-test");
+// Source is in examples/internal/ (not synced to public repo)
+const EXAMPLES_DIR = join(import.meta.dir, "../examples/internal/mystral-test");
+// Output goes to examples/ (synced to public repo)
+const OUTPUT_DIR = join(import.meta.dir, "../examples");
 
-// List of example files to bundle
-const EXAMPLES = [
-  "main.ts",
-  "basic-scene.ts",
-  "sponza.ts",
-  "sponza-full.ts",
-  "forest2.ts",
-  "ui-simple.ts",
-  "ui-minimal.ts",
-  "ui-test.ts",
-  "ui-no-radius.ts",
+// List of example files to bundle (source -> output name)
+const EXAMPLES: Array<{ source: string; output: string }> = [
+  { source: "main.ts", output: "mystral-helmet.js" },
+  // Add more examples here as needed:
+  // { source: "basic-scene.ts", output: "mystral-basic-scene.js" },
+  // { source: "sponza.ts", output: "mystral-sponza.js" },
 ];
 
-async function bundleExample(entryFile: string): Promise<boolean> {
-  const entryPath = join(EXAMPLES_DIR, entryFile);
-  const outputPath = join(EXAMPLES_DIR, entryFile.replace(".ts", ".js"));
+async function bundleExample(example: { source: string; output: string }): Promise<boolean> {
+  const entryPath = join(EXAMPLES_DIR, example.source);
+  const outputPath = join(OUTPUT_DIR, example.output);
 
-  console.log(`Bundling: ${entryFile} -> ${basename(outputPath)}`);
+  console.log(`Bundling: ${example.source} -> ${example.output}`);
 
   try {
     const result = await Bun.build({
@@ -47,7 +45,7 @@ async function bundleExample(entryFile: string): Promise<boolean> {
     });
 
     if (!result.success) {
-      console.error(`  Failed to bundle ${entryFile}:`);
+      console.error(`  Failed to bundle ${example.source}:`);
       for (const log of result.logs) {
         console.error(`    ${log}`);
       }
@@ -66,8 +64,13 @@ async function bundleExample(entryFile: string): Promise<boolean> {
     const sizeKB = (output.length / 1024).toFixed(1);
     console.log(`  Done: ${sizeKB} KB`);
     return true;
-  } catch (error) {
-    console.error(`  Error bundling ${entryFile}: ${error}`);
+  } catch (error: any) {
+    console.error(`  Error bundling ${example.source}: ${error}`);
+    if (error.errors) {
+      for (const e of error.errors) {
+        console.error(`    - ${e.text || e.message || e}`);
+      }
+    }
     return false;
   }
 }

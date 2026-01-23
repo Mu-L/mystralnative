@@ -93,7 +93,8 @@ async function main() {
     let imageBitmap = null;
 
     // Use file:// URL for local files (standard fetch behavior)
-    const texturePath = "file:///Users/suyogsonwalkar/Projects/mystral/assets/terrain/grass_diffuse.png";
+    // Replace with your own texture path, or it will fallback to checkerboard
+    const texturePath = "file://./examples/assets/texture.png";
 
     try {
         console.log("Fetching texture:", texturePath);

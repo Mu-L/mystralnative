@@ -101,6 +101,7 @@ window.addEventListener("gamepadconnected", (e) => {
 | `test-gamepad.js` | Gamepad API test |
 | `gltf-test/main.ts` | GLTF model loading |
 | `simple-mystral/` | Mini engine example |
+| `mystral-helmet.js` | Full Mystral Engine with DamagedHelmet model |
 
 Sample 3D models included in `examples/assets/`:
 - `DamagedHelmet.glb` - Khronos sample model
@@ -238,3 +239,4 @@ Issues and PRs welcome! See the [GitHub repository](https://github.com/mystralen
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+

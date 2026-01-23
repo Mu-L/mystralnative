@@ -11,8 +11,9 @@ declare const Mystral: {
 
 console.log("GLTF Loading Test - Starting");
 
-// Load the damaged helmet GLB file
-const helmetPath = "/Users/suyogsonwalkar/Projects/mystral/apps/mystral/dist/assets/DamagedHelmet/glTF-Binary/DamagedHelmet.glb";
+// Load the damaged helmet GLB file from examples/assets/
+// Use relative path from the repo root (where you run mystral from)
+const helmetPath = "./examples/assets/DamagedHelmet.glb";
 
 console.log("Loading: " + helmetPath);
 
