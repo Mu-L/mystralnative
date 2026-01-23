@@ -10,6 +10,8 @@
  *   node scripts/download-deps.mjs --all        # Download everything (desktop + iOS + Android)
  *   node scripts/download-deps.mjs --only wgpu  # Download only wgpu-native
  *   node scripts/download-deps.mjs --only skia-ios  # Download only iOS Skia
+ *   node scripts/download-deps.mjs --exclude skia   # Download all desktop deps except skia
+ *   node scripts/download-deps.mjs --exclude skia,dawn  # Exclude multiple deps (comma-separated)
  *   node scripts/download-deps.mjs --force      # Re-download even if exists
  *
  * Desktop deps: wgpu, sdl3, dawn, v8, quickjs, stb, cgltf, webp, skia, swc
@@ -628,6 +630,7 @@ async function main() {
   // Parse arguments
   const args = process.argv.slice(2);
   const onlyIndex = args.indexOf('--only');
+  const excludeIndex = args.indexOf('--exclude');
 
   // Desktop deps (downloaded by default)
   const desktopDeps = ['wgpu', 'sdl3', 'dawn', 'v8', 'quickjs', 'stb', 'cgltf', 'webp', 'skia', 'swc'];
@@ -644,6 +647,15 @@ async function main() {
 
   // All available deps
   const allDeps = [...desktopDeps, ...iosDeps, ...androidDeps, ...windowsDeps];
+
+  // Parse --exclude option (comma-separated list of deps to skip)
+  let excludeDeps = [];
+  if (excludeIndex !== -1) {
+    const excludeArg = args[excludeIndex + 1];
+    if (excludeArg) {
+      excludeDeps = excludeArg.split(',').map(d => d.trim());
+    }
+  }
 
   let depsToDownload;
   if (onlyIndex !== -1) {
@@ -670,6 +682,12 @@ async function main() {
   } else {
     // Default: desktop deps only
     depsToDownload = desktopDeps;
+  }
+
+  // Apply exclusions
+  if (excludeDeps.length > 0) {
+    depsToDownload = depsToDownload.filter(d => !excludeDeps.includes(d));
+    console.log(`Excluding: ${excludeDeps.join(', ')}`);
   }
 
   console.log('Mystral Native Runtime - Dependency Downloader');
