@@ -157,10 +157,12 @@ jobs:
   # =============================================================================
   build-linux:
     if: ${{ inputs.build_filter == 'all' || inputs.build_filter == 'linux-only' }}
-    # Use Ubuntu 20.04 for maximum glibc compatibility (glibc 2.31)
-    # This allows binaries to run on most Linux distros from the last 5 years
-    runs-on: ubuntu-20.04
-    timeout-minutes: 10
+    # Use Ubuntu 24.04 runner with Ubuntu 20.04 container for glibc 2.31 compatibility
+    # This gives us fast runner availability while ensuring binaries work on older distros
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:20.04
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -185,6 +187,11 @@ jobs:
     name: Build - ${{ matrix.name }}
 
     steps:
+      - name: Install git and basic tools
+        run: |
+          apt-get update
+          apt-get install -y git curl ca-certificates
+
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -194,8 +201,8 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             cmake \
             build-essential \
             libx11-dev \
