@@ -418,11 +418,12 @@ jobs:
           INCLUDE_DIR="third_party/skia/build/include"
           mkdir -p "$INCLUDE_DIR/webgpu"
 
-          # webgpu/webgpu.h -> dawn/webgpu.h (using printf to avoid heredoc indentation issues)
-          printf '#ifndef INCLUDE_WEBGPU_WEBGPU_H_\n#define INCLUDE_WEBGPU_WEBGPU_H_\n#include "dawn/webgpu.h"\n#endif\n' > "$INCLUDE_DIR/webgpu/webgpu.h"
+          # webgpu/webgpu.h -> dawn/webgpu.h
+          # Use angle brackets so it searches include paths (dawn/ is a sibling dir, not subdir)
+          printf '#ifndef INCLUDE_WEBGPU_WEBGPU_H_\n#define INCLUDE_WEBGPU_WEBGPU_H_\n#include <dawn/webgpu.h>\n#endif\n' > "$INCLUDE_DIR/webgpu/webgpu.h"
 
           # webgpu/webgpu_cpp.h -> dawn/webgpu_cpp.h
-          printf '#ifndef INCLUDE_WEBGPU_WEBGPU_CPP_H_\n#define INCLUDE_WEBGPU_WEBGPU_CPP_H_\n#include "dawn/webgpu_cpp.h"\n#endif\n' > "$INCLUDE_DIR/webgpu/webgpu_cpp.h"
+          printf '#ifndef INCLUDE_WEBGPU_WEBGPU_CPP_H_\n#define INCLUDE_WEBGPU_WEBGPU_CPP_H_\n#include <dawn/webgpu_cpp.h>\n#endif\n' > "$INCLUDE_DIR/webgpu/webgpu_cpp.h"
 
           echo "Created WebGPU wrapper headers in $INCLUDE_DIR/webgpu/"
           cat "$INCLUDE_DIR/webgpu/webgpu.h"
