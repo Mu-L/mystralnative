@@ -10,11 +10,9 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Windows: CRT selection depends on WebGPU backend
-# - wgpu builds: Use /MT (static CRT) to match Skia prebuilt
-# - Dawn builds: Use /MD (dynamic CRT) to match Dawn prebuilt
-# The CI workflow passes -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded for wgpu builds
-# For Dawn builds, we use the default /MD which matches the prebuilt Dawn library
+# Windows: Use /MT (static CRT) for all builds
+# Both Skia and Dawn (from library-builder) are built with /MT static CRT.
+# The CI workflow passes -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded for all Windows builds.
 
 # ============================================================================
 # Options
@@ -234,14 +232,39 @@ if(MYSTRAL_USE_WGPU)
     endif()
 endif()
 
-# Dawn
-# Use official Dawn releases from https://github.com/google/dawn/releases
-# Note: dawn_combined.lib from Skia only contains proc stubs, not actual implementation
+# Dawn WebGPU Implementation
+# Windows: Uses dawn_combined.lib from Skia build (library-builder), built with /MT static CRT
+#          and full D3D11/D3D12 WebGPU implementation (not just proc stubs)
+# Other platforms: Uses official Dawn releases from https://github.com/google/dawn/releases
 if(MYSTRAL_USE_DAWN)
     set(DAWN_FOUND OFF)
 
-    # Use official Dawn releases (has webgpu_dawn.lib with actual implementation)
-    if(TRUE)
+    if(WIN32)
+        # Windows: Look for dawn_combined.lib in the Skia build directory
+        # The skia-win-static dependency from library-builder includes Dawn with full
+        # D3D11/D3D12 backends, built with /MT static CRT to match Skia
+        if(EXISTS ${SKIA_TARGET_DIR})
+            # dawn_combined.lib is in the same directory as skia.lib
+            set(DAWN_LIB_PATH ${SKIA_TARGET_DIR}/build/${SKIA_PLATFORM_DIR}/lib/Release/${SKIA_LIB_SUBDIR}/dawn_combined.lib)
+            message(STATUS "Looking for Dawn combined library at: ${DAWN_LIB_PATH}")
+
+            if(EXISTS ${DAWN_LIB_PATH})
+                set(DAWN_LIBRARY ${DAWN_LIB_PATH})
+                # Dawn headers are included in Skia's include directory
+                # (webgpu/webgpu.h, dawn/webgpu.h, etc.)
+                set(DAWN_INCLUDE_DIR ${SKIA_INCLUDE_DIR})
+                set(DAWN_FOUND ON)
+                message(STATUS "Found Dawn combined library from Skia build")
+            else()
+                message(WARNING "dawn_combined.lib not found in Skia build at ${DAWN_LIB_PATH}")
+                message(WARNING "Run 'node scripts/download-deps.mjs --only skia-win-static' first.")
+            endif()
+        else()
+            message(WARNING "Skia directory not found. Dawn on Windows requires Skia build.")
+            message(WARNING "Run 'node scripts/download-deps.mjs --only skia-win-static' first.")
+        endif()
+    else()
+        # Non-Windows: Use official Dawn releases
         set(DAWN_DIR ${THIRD_PARTY_DIR}/dawn)
         if(EXISTS ${DAWN_DIR})
             # Find the platform-specific subdirectory (contains commit hash in name)
@@ -256,16 +279,10 @@ if(MYSTRAL_USE_DAWN)
                 message(STATUS "Dawn lib directory contents: ${DAWN_LIB_FILES}")
                 message(STATUS "Dawn lib64 directory contents: ${DAWN_LIB64_FILES}")
 
-                # Find library - try multiple names and types
-                if(WIN32)
-                    set(DAWN_LIB_NAMES "webgpu_dawn.lib" "dawn.lib" "libwebgpu_dawn.a")
-                    set(DAWN_LIB_DIRS "lib")
-                else()
-                    # Try static first, then shared
-                    set(DAWN_LIB_NAMES "libwebgpu_dawn.a" "libdawn.a" "libwebgpu_dawn.so" "libdawn.so")
-                    # Linux uses lib64, macOS uses lib
-                    set(DAWN_LIB_DIRS "lib64" "lib")
-                endif()
+                # Find library - try static first, then shared
+                set(DAWN_LIB_NAMES "libwebgpu_dawn.a" "libdawn.a" "libwebgpu_dawn.so" "libdawn.so")
+                # Linux uses lib64, macOS uses lib
+                set(DAWN_LIB_DIRS "lib64" "lib")
 
                 foreach(LIB_DIR ${DAWN_LIB_DIRS})
                     foreach(LIB_NAME ${DAWN_LIB_NAMES})
@@ -323,8 +340,11 @@ if(MYSTRAL_USE_DAWN)
         message(STATUS "Dawn includes: ${DAWN_INCLUDE_DIR}")
     else()
         message(WARNING "Dawn library or headers not found")
-        message(WARNING "  For Windows Dawn: Run 'node scripts/download-deps.mjs --only skia-win-static'")
-        message(WARNING "  For other platforms: Run 'node scripts/download-deps.mjs --only dawn'")
+        if(WIN32)
+            message(WARNING "  Run 'node scripts/download-deps.mjs --only skia-win-static'")
+        else()
+            message(WARNING "  Run 'node scripts/download-deps.mjs --only dawn'")
+        endif()
     endif()
 endif()
 

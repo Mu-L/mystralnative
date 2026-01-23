@@ -429,15 +429,13 @@ jobs:
           export PATH="/c/Program Files/7-Zip:$PATH"
           node scripts/download-deps.mjs --only v8
 
-      - name: Download Dawn for Windows builds
+      - name: Download Skia with Dawn for Windows builds
         if: steps.cache-deps.outputs.cache-hit != 'true'
         shell: bash
         run: |
           export PATH="/c/Program Files/7-Zip:$PATH"
-          # Download official Dawn release (has webgpu_dawn.lib with actual implementation)
-          # Note: dawn_combined.lib from skia-win-static only has proc stubs
-          node scripts/download-deps.mjs --only dawn
-          # Also get Skia static for /MT CRT compatibility
+          # Download Skia + Dawn from library-builder (includes dawn_combined.lib with D3D11/D3D12)
+          # This build uses /MT static CRT and has full WebGPU implementation
           node scripts/download-deps.mjs --only skia-win-static
 
       - name: Install vcpkg dependencies
