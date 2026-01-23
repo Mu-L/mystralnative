@@ -162,7 +162,10 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: ubuntu:20.04
-    timeout-minutes: 15
+      # Set DEBIAN_FRONTEND to avoid interactive prompts
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
