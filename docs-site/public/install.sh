@@ -102,13 +102,9 @@ get_latest_version() {
 
 select_build() {
     # Default to V8 + Dawn for best compatibility
+    # Dawn is recommended for mystral-helmet and full Mystral Engine demos
     JS_ENGINE="v8"
     WEBGPU_BACKEND="dawn"
-
-    # Use wgpu on Linux (Dawn not available)
-    if [ "$OS" = "linux" ]; then
-        WEBGPU_BACKEND="wgpu"
-    fi
 
     BUILD_NAME="mystral-${PLATFORM}-${JS_ENGINE}-${WEBGPU_BACKEND}"
     DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/${BUILD_NAME}.zip"
