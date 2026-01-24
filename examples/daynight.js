@@ -40798,7 +40798,7 @@ class GLBLoader {
     this.textures.clear();
     this.materials.clear();
     if (gltf.textures && gltf.images) {
-      await this.loadTextures(gltf, binChunk, baseUrl);
+      await this.loadTextures(gltf, binChunk);
     }
     if (gltf.materials) {
       this.loadMaterials(gltf);
@@ -40806,32 +40806,18 @@ class GLBLoader {
     const rootNode = this.buildSceneGraph(gltf, binChunk);
     return { rootNode };
   }
-  async loadTextures(gltf, binChunk, baseUrl) {
+  async loadTextures(gltf, binChunk) {
     if (!gltf.textures || !gltf.images)
       return;
-    let basePath = "";
-    if (baseUrl) {
-      const lastSlash = baseUrl.lastIndexOf("/");
-      if (lastSlash >= 0) {
-        basePath = baseUrl.substring(0, lastSlash + 1);
-      }
-    }
     for (let i = 0;i < gltf.textures.length; i++) {
       const texDef = gltf.textures[i];
-      let imageSource = texDef.source;
-      if (imageSource === undefined && texDef.extensions?.EXT_texture_webp?.source !== undefined) {
-        imageSource = texDef.extensions.EXT_texture_webp.source;
-      }
-      if (imageSource === undefined) {
-        return;
-      }
-      const imgDef = gltf.images[imageSource];
-      if (!imgDef) {
-        return;
-      }
+      if (texDef.source === undefined)
+        continue;
+      const imgDef = gltf.images[texDef.source];
+      if (!imgDef)
+        continue;
       try {
         let imageData = null;
-        let mimeType = imgDef.mimeType || "image/png";
         if (imgDef.bufferView !== undefined && binChunk) {
           const bufferView = gltf.bufferViews[imgDef.bufferView];
           const start = bufferView.byteOffset || 0;
@@ -40845,30 +40831,10 @@ class GLBLoader {
               bytes[j] = binary.charCodeAt(j);
             }
             imageData = bytes.buffer;
-          } else {
-            const imageUrl = basePath + imgDef.uri;
-            try {
-              const response = await fetch(imageUrl);
-              if (response.ok) {
-                imageData = await response.arrayBuffer();
-                if (!imgDef.mimeType) {
-                  if (imgDef.uri.endsWith(".webp"))
-                    mimeType = "image/webp";
-                  else if (imgDef.uri.endsWith(".png"))
-                    mimeType = "image/png";
-                  else if (imgDef.uri.endsWith(".jpg") || imgDef.uri.endsWith(".jpeg"))
-                    mimeType = "image/jpeg";
-                }
-              } else {
-                console.warn(`GLBLoader: Failed to fetch texture ${imgDef.uri}: ${response.status}`);
-              }
-            } catch (fetchErr) {
-              console.warn(`GLBLoader: Error fetching texture ${imgDef.uri}:`, fetchErr);
-            }
           }
         }
         if (imageData) {
-          const blob = new Blob([imageData], { type: mimeType });
+          const blob = new Blob([imageData], { type: imgDef.mimeType || "image/png" });
           const bitmap = await createImageBitmap(blob);
           const isSrgb = this.isColorTexture(gltf, i);
           const texture = new Texture(`GLB Texture ${i}`, { srgb: isSrgb });
