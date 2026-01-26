@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 // Import all markdown files at build time
 const mdxModules = import.meta.glob('../../docs/**/*.{md,mdx}');
+// Import raw markdown content for copy/download
+const mdxRaw = import.meta.glob('../../docs/**/*.{md,mdx}', { query: '?raw', import: 'default' });
 
 // Sidebar configuration
 const sidebarItems = [
@@ -43,9 +45,60 @@ const sidebarItems = [
   },
 ];
 
+function CopyDownloadButton({ rawContent, slug }: { rawContent: string; slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(rawContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    const filename = slug.replace(/\//g, '-') + '.md';
+    const blob = new Blob([rawContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    setOpen(false);
+  };
+
+  return (
+    <div className="copy-download-group" ref={ref}>
+      <button className="copy-btn" onClick={handleCopy}>
+        {copied ? 'Copied!' : 'Copy page'}
+      </button>
+      <button className="copy-dropdown-toggle" onClick={() => setOpen(!open)}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+          <path d="M3 5l3 3 3-3H3z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="copy-dropdown-menu">
+          <button onClick={handleDownload}>Download .md</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DocPage() {
   const location = useLocation();
   const [Content, setContent] = useState<React.ComponentType | null>(null);
+  const [rawContent, setRawContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   // Extract slug from path (e.g., /docs/getting-started -> getting-started)
@@ -55,6 +108,7 @@ export default function DocPage() {
     async function loadContent() {
       setError(null);
       setContent(null);
+      setRawContent('');
 
       // Try different path variations
       const possiblePaths = [
@@ -69,6 +123,11 @@ export default function DocPage() {
           try {
             const module = (await mdxModules[path]()) as { default: React.ComponentType };
             setContent(() => module.default);
+            // Load raw content
+            if (mdxRaw[path]) {
+              const raw = (await mdxRaw[path]()) as string;
+              setRawContent(raw);
+            }
             return;
           } catch (err) {
             console.error('Failed to load:', path, err);
@@ -124,7 +183,10 @@ export default function DocPage() {
               </p>
             </div>
           ) : Content ? (
-            <Content />
+            <>
+              {rawContent && <CopyDownloadButton rawContent={rawContent} slug={slug} />}
+              <Content />
+            </>
           ) : (
             <div>Loading...</div>
           )}

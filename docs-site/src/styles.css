@@ -337,6 +337,79 @@ a:hover {
   font-size: 0.9rem;
 }
 
+/* Copy / Download button group */
+.copy-download-group {
+  position: relative;
+  display: inline-flex;
+  float: right;
+  margin-top: 4px;
+}
+
+.copy-btn {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.copy-btn:hover {
+  color: var(--color-text);
+  background: var(--color-border);
+}
+
+.copy-dropdown-toggle {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.copy-dropdown-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-border);
+}
+
+.copy-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 10;
+  min-width: 140px;
+}
+
+.copy-dropdown-menu button {
+  display: block;
+  width: 100%;
+  background: none;
+  color: var(--color-text-muted);
+  border: none;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.copy-dropdown-menu button:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
