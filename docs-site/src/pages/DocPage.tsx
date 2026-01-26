@@ -30,6 +30,7 @@ const sidebarItems = [
     items: [
       { label: 'CLI Commands', path: 'api/cli' },
       { label: 'JavaScript APIs', path: 'api/javascript' },
+      { label: 'Native APIs', path: 'api/native-apis' },
       { label: 'Embedding', path: 'api/embedding' },
     ],
   },

@@ -19538,6 +19538,17 @@ class GLBLoader {
     return GLBLoader.dracoInitPromise;
   }
   async decodeDraco(compressedData, attributeIds) {
+    if (typeof globalThis.__mystralNativeDecodeDracoAsync === "function") {
+      const result = await globalThis.__mystralNativeDecodeDracoAsync(compressedData, attributeIds);
+      if (result) {
+        return {
+          positions: new Float32Array(result.positions),
+          normals: result.normals ? new Float32Array(result.normals) : null,
+          uvs: result.uvs ? new Float32Array(result.uvs) : null,
+          indices: new Uint32Array(result.indices)
+        };
+      }
+    }
     await this.initDracoWorker();
     return new Promise((resolve, reject) => {
       const requestId = GLBLoader.dracoRequestId++;
@@ -19852,7 +19863,9 @@ class GLBLoader {
     const nodeMap = new Map;
     if (this.usesDraco(gltf)) {
       console.log("GLBLoader: Model uses Draco compression, initializing decoder...");
-      await this.initDracoWorker();
+      if (typeof globalThis.__mystralNativeDecodeDracoAsync !== "function") {
+        await this.initDracoWorker();
+      }
     }
     if (gltf.nodes) {
       for (let i = 0;i < gltf.nodes.length; i++) {

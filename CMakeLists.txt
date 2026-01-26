@@ -741,6 +741,53 @@ else()
     message(STATUS "libuv not found - async I/O disabled. Run 'node scripts/download-deps.mjs --only libuv' to enable.")
 endif()
 
+# Draco (optional - for native C++ Draco mesh decompression, bypasses WASM/Worker)
+# Prebuilt layout: draco/include/draco/*.h, draco/libdraco.a (or draco.lib)
+option(MYSTRAL_USE_DRACO "Enable native Draco mesh decoder (bypasses WASM)" ON)
+set(DRACO_DIR ${THIRD_PARTY_DIR}/draco)
+if(MYSTRAL_USE_DRACO AND EXISTS ${DRACO_DIR} AND NOT IOS AND NOT ANDROID)
+    # Headers
+    if(EXISTS ${DRACO_DIR}/include)
+        set(DRACO_INCLUDE_DIR ${DRACO_DIR}/include)
+    endif()
+
+    # Library
+    if(WIN32)
+        set(DRACO_LIB_PATH ${DRACO_DIR}/draco.lib)
+    else()
+        set(DRACO_LIB_PATH ${DRACO_DIR}/libdraco.a)
+    endif()
+
+    if(EXISTS ${DRACO_LIB_PATH})
+        set(DRACO_LIBRARY ${DRACO_LIB_PATH})
+    else()
+        find_library(DRACO_LIBRARY
+            NAMES draco libdraco
+            PATHS ${DRACO_DIR} ${DRACO_DIR}/lib
+            NO_DEFAULT_PATH
+        )
+    endif()
+
+    if(DRACO_LIBRARY AND DRACO_INCLUDE_DIR)
+        add_library(draco::draco STATIC IMPORTED)
+        set_target_properties(draco::draco PROPERTIES
+            IMPORTED_LOCATION ${DRACO_LIBRARY}
+            INTERFACE_INCLUDE_DIRECTORIES ${DRACO_INCLUDE_DIR}
+        )
+        add_compile_definitions(MYSTRAL_HAS_DRACO)
+        message(STATUS "Found Draco: ${DRACO_LIBRARY}")
+        message(STATUS "Draco includes: ${DRACO_INCLUDE_DIR}")
+    else()
+        message(WARNING "Draco library or headers not found:")
+        message(WARNING "  Library: ${DRACO_LIB_PATH}")
+        message(WARNING "  Include: ${DRACO_INCLUDE_DIR}")
+    endif()
+else()
+    if(MYSTRAL_USE_DRACO)
+        message(STATUS "Draco not found - native Draco decoder disabled. Run 'node scripts/download-deps.mjs --only draco' to enable.")
+    endif()
+endif()
+
 # ============================================================================
 # Main Library
 # ============================================================================
@@ -1020,6 +1067,11 @@ if(TARGET libuv::libuv)
     if(LIBUV_SYSTEM_LIBS)
         target_link_libraries(mystral-runtime PUBLIC ${LIBUV_SYSTEM_LIBS})
     endif()
+endif()
+
+# Draco linkage (native mesh decoder - bypasses WASM/Worker)
+if(TARGET draco::draco)
+    target_link_libraries(mystral-runtime PRIVATE draco::draco)
 endif()
 
 # ============================================================================

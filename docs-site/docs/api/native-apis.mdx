@@ -1,0 +1,218 @@
+# Native APIs
+
+Mystral Native.js exposes native C++ functions to JavaScript. These fall into two categories:
+
+- **`__mystralNative*` functions** — Optional, feature-gated APIs (e.g. Draco decoder). These may not exist in all builds or in browsers. Always use a `typeof` check before calling.
+- **`__` internal functions** — Core runtime plumbing (file I/O, HTTP, GLTF parsing). Always present in MystralNative, consumed by polyfills.
+
+## API Reference
+
+### `__mystralNative*` APIs (optional, feature-gated)
+
+| API | Returns | Description |
+|-----|---------|-------------|
+| `__mystralNativeDecodeDracoAsync(buffer, attrs)` | `Promise<Object>` | Async native Draco mesh decoder via libuv thread pool (requires `MYSTRAL_HAS_DRACO`) |
+
+### Internal APIs (always present in MystralNative)
+
+| API | Returns | Description |
+|-----|---------|-------------|
+| `__readFileSync(path)` | `ArrayBuffer \| null` | Synchronous file read from embedded bundle or filesystem |
+| `__readFileAsync(path, callback)` | `void` | Asynchronous file read via libuv thread pool |
+| `__httpRequestAsync(url, opts, callback)` | `void` | Asynchronous HTTP request via libcurl + libuv |
+| `__loadGLTF(data, basePath)` | `Object \| null` | Native cgltf-based GLTF/GLB parser |
+| `__nativeCanvasToDataURL(mime)` | `string` | Canvas content as data URL |
+
+## Feature Detection
+
+`__mystralNative*` APIs may not be available in all builds or environments. **Always use a `typeof` check** before calling so the same JavaScript works in both MystralNative and browsers:
+
+```javascript
+// Check for native async Draco decoder
+if (typeof __mystralNativeDecodeDracoAsync === 'function') {
+    const result = await __mystralNativeDecodeDracoAsync(compressedBuffer, attributeIds);
+    // Use native path — decoded on a background thread via libuv
+} else {
+    // Fall back to WASM decoder via Worker
+}
+```
+
+This pattern ensures the same JS bundle works everywhere — MystralNative uses the native C++ path, browsers use the WASM fallback.
+
+## `__readFileSync(path)`
+
+Synchronously reads a file and returns its contents as an `ArrayBuffer`. Checks the embedded bundle first (for packaged apps), then falls back to the filesystem.
+
+```javascript
+// Read from embedded bundle or filesystem
+const data = __readFileSync('file://./assets/model.glb');
+if (data) {
+    console.log('Read', data.byteLength, 'bytes');
+}
+
+// Also works with absolute paths
+const config = __readFileSync('/home/user/game/config.json');
+```
+
+**Parameters:**
+- `path` (string) — File path. Supports `file://` prefix (stripped automatically) and relative/absolute paths.
+
+**Returns:** `ArrayBuffer` with file contents, or `null` if the file was not found.
+
+**Notes:**
+- On Android, reads from the APK assets directory via SDL
+- For bundled apps, checks the embedded VFS before the filesystem
+- This is used internally by the `fetch` polyfill for `file://` URLs
+
+## `__readFileAsync(path, callback)`
+
+Asynchronously reads a file using libuv's thread pool, avoiding main thread blocking. The callback receives the result on the next event loop tick.
+
+```javascript
+__readFileAsync('file://./assets/large-model.glb', (error, data) => {
+    if (error) {
+        console.error('Read failed:', error);
+        return;
+    }
+    console.log('Read', data.byteLength, 'bytes');
+});
+```
+
+**Parameters:**
+- `path` (string) — File path (same format as `__readFileSync`)
+- `callback` (function) — Called with `(error, data)` where data is an `ArrayBuffer`
+
+**Requires:** `MYSTRAL_HAS_LIBUV` (libuv must be linked)
+
+## `__httpRequestAsync(url, options, callback)`
+
+Performs an asynchronous HTTP request using libcurl on a libuv thread pool thread. Supports GET, POST, and other HTTP methods.
+
+```javascript
+__httpRequestAsync('https://api.example.com/data', {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' }
+}, (error, response) => {
+    if (error) {
+        console.error('Request failed:', error);
+        return;
+    }
+    console.log('Status:', response.status);
+    console.log('Body:', new TextDecoder().decode(new Uint8Array(response.body)));
+});
+```
+
+**Parameters:**
+- `url` (string) — Full URL (http:// or https://)
+- `options` (object) — `{ method, headers, body }`
+- `callback` (function) — Called with `(error, response)` where response has `{ status, headers, body }`
+
+**Requires:** `MYSTRAL_HAS_LIBUV` (libuv must be linked)
+
+**Notes:** This is used internally by the `fetch` polyfill for HTTP/HTTPS URLs.
+
+## `__mystralNativeDecodeDracoAsync(buffer, attributeIds)`
+
+Asynchronously decodes a Draco-compressed mesh buffer using the native C++ Draco library on a **libuv thread pool thread**. This bypasses the WASM/Worker decoder entirely and does not block the main/render thread.
+
+```javascript
+// Always check with typeof first (browsers don't have this function)
+if (typeof __mystralNativeDecodeDracoAsync === 'function') {
+    // attributeIds come from the glTF KHR_draco_mesh_compression extension
+    const result = await __mystralNativeDecodeDracoAsync(compressedBuffer, {
+        POSITION: 0,
+        NORMAL: 1,
+        TEXCOORD_0: 2
+    });
+
+    const positions = new Float32Array(result.positions);
+    const normals = result.normals ? new Float32Array(result.normals) : null;
+    const uvs = result.uvs ? new Float32Array(result.uvs) : null;
+    const indices = new Uint32Array(result.indices);
+}
+```
+
+**Parameters:**
+- `buffer` (ArrayBuffer) — Draco-compressed mesh data
+- `attributeIds` (object) — Map of attribute names to Draco unique IDs: `{ POSITION, NORMAL, TEXCOORD_0 }`
+
+**Returns:** `Promise<Object>` resolving to an object with `ArrayBuffer` properties:
+- `positions` — Float32 positions (vec3, 3 floats per vertex)
+- `normals` — Float32 normals (vec3) or not present
+- `uvs` — Float32 texture coordinates (vec2) or not present
+- `indices` — Uint32 triangle indices
+
+Rejects with an `Error` if decoding fails.
+
+**Requires:** `MYSTRAL_HAS_DRACO` — Build with `-DMYSTRAL_USE_DRACO=ON` and Draco library in `third_party/draco/`.
+
+**Implementation details:**
+- Compressed data is copied before dispatch (safe if JS GC runs during decode)
+- Decoding runs on libuv's thread pool (default 4 threads, configurable via `UV_THREADPOOL_SIZE`)
+- Results are marshalled back to the main thread on the next event loop tick
+- The GLBLoader automatically uses this when available, skipping Worker/WASM init entirely
+- Only supports triangular meshes (not point clouds)
+
+**Underlying C++ function:** `__mystralNativeDecodeDraco(buffer, attrs, callback)` — the Promise wrapper calls this internally.
+
+## `__loadGLTF(data, basePath)`
+
+Parses a GLTF/GLB file from memory using the native cgltf library. Returns a structured JavaScript object with all mesh data, materials, textures, nodes, and scenes.
+
+```javascript
+const response = await fetch('file://./model.glb');
+const buffer = await response.arrayBuffer();
+const gltf = __loadGLTF(buffer, './');
+
+if (gltf) {
+    console.log('Meshes:', gltf.meshes.length);
+    console.log('Nodes:', gltf.nodes.length);
+}
+```
+
+**Parameters:**
+- `data` (ArrayBuffer | string) — GLB/GLTF binary data or file path
+- `basePath` (string) — Base path for resolving external resources (textures, .bin files)
+
+**Returns:** Structured GLTF object with meshes, materials, textures, images, nodes, and scenes. Returns `null` on failure.
+
+**Notes:** The higher-level `loadGLTF()` function (available globally) wraps this with fetch for convenience.
+
+## `__nativeCanvasToDataURL(mimeType)`
+
+Captures the current canvas content and returns it as a base64-encoded data URL. Used internally by `canvas.toDataURL()`.
+
+```javascript
+const dataUrl = __nativeCanvasToDataURL('image/png');
+// Returns: "data:image/png;base64,iVBORw0KGgo..."
+```
+
+**Parameters:**
+- `mimeType` (string) — Output format, e.g. `'image/png'` or `'image/jpeg'`
+
+**Returns:** Base64 data URL string.
+
+## Build Configuration
+
+Native APIs are conditionally compiled based on build options:
+
+| Define | CMake Option | Dependencies |
+|--------|-------------|--------------|
+| `MYSTRAL_HAS_DRACO` | `-DMYSTRAL_USE_DRACO=ON` | `third_party/draco/` |
+| `MYSTRAL_HAS_LIBUV` | Automatic (if libuv found) | `third_party/libuv/` |
+| `MYSTRAL_HAS_WEBP` | Automatic (if libwebp found) | `third_party/webp/` |
+| `MYSTRAL_HAS_SKIA` | Automatic (if Skia found) | `third_party/skia/` |
+| `MYSTRAL_HAS_SWC` | `-DMYSTRAL_USE_SWC=ON` | `third_party/swc/` |
+
+To download optional dependencies:
+
+```bash
+node scripts/download-deps.mjs --only draco
+node scripts/download-deps.mjs --only libuv
+```
+
+## Next Steps
+
+- [JavaScript APIs](/mystralnative/docs/api/javascript) — Standard Web APIs (WebGPU, Canvas 2D, fetch, Worker, etc.)
+- [CLI Commands](/mystralnative/docs/api/cli) — Command-line interface
+- [Embedding](/mystralnative/docs/api/embedding) — Use as a C++ library

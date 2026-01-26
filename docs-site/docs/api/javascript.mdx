@@ -279,9 +279,22 @@ worker.postMessage(21); // Result: 42
 worker.terminate();
 ```
 
+### `importScripts` Support
+
+The Worker polyfill supports `importScripts()`, matching the standard WebWorker behavior. Scripts are loaded synchronously from the embedded bundle or filesystem using `__readFileSync`, then executed via `eval`.
+
+```javascript
+// Inside worker code:
+importScripts('draco_decoder.js');
+importScripts('lib1.js', 'lib2.js'); // Multiple scripts supported
+```
+
+This enables libraries like the Draco mesh decoder to load their WASM glue code via `importScripts` without falling back to `fetch + eval`.
+
 > **Note:** Workers run on the main thread, not in a separate thread. This is sufficient for libraries that use Workers for code isolation (like Draco) but won't provide parallel execution.
 
 ## Next Steps
 
+- [Native APIs](/mystralnative/docs/api/native-apis) - Low-level `__`-prefixed native functions (`__decodeDraco`, `__readFileSync`, etc.)
 - [Embedding](/mystralnative/docs/api/embedding) - Use as a C++ library
 - [WebGPU Reference](https://www.w3.org/TR/webgpu/) - Full WebGPU spec

@@ -46,6 +46,13 @@
 #include <uv.h>
 #define MYSTRAL_USE_LIBUV_TIMERS 1
 #endif
+
+// Draco mesh decoder (conditional)
+#ifdef MYSTRAL_HAS_DRACO
+#include <draco/compression/decode.h>
+#include <draco/mesh/mesh.h>
+#include <draco/core/decoder_buffer.h>
+#endif
 #include <cstdlib>
 #include <cstring>
 
@@ -387,6 +394,9 @@ public:
         // This provides loadGLTF() for loading .glb/.gltf files from local paths
         setupGLTF();
 
+        // Set up native Draco mesh decoder (if compiled with MYSTRAL_HAS_DRACO)
+        setupDraco();
+
         // Set up Web Audio API bindings (skip in no-SDL mode - audio requires SDL)
         if (!config_.noSdl) {
             audio::initializeAudioBindings(jsEngine_.get());
@@ -723,6 +733,9 @@ public:
         // Process any queued file callbacks that were deferred from previous frames
         // We process them here (after other callbacks) to ensure we're not in a nested callback stack
         processPendingFileCallbacks();
+
+        // Process completed async Draco decode results
+        processPendingDracoCallbacks();
 
         // Process microtask queue for promises
         processMicrotasks();
@@ -1860,12 +1873,27 @@ if (typeof Worker === 'undefined') {
             };
             workerSelf.self = workerSelf;
 
+            // importScripts polyfill — uses __readFileSync (synchronous bundle/FS read)
+            // combined with TextDecoder to load and execute scripts synchronously,
+            // matching the browser WebWorker importScripts() behavior.
+            workerSelf.importScripts = function() {
+                for (let i = 0; i < arguments.length; i++) {
+                    const url = arguments[i];
+                    const data = __readFileSync(url);
+                    if (!data) {
+                        throw new Error('importScripts: Failed to load script: ' + url);
+                    }
+                    const code = new TextDecoder().decode(new Uint8Array(data));
+                    (0, eval)(code);
+                }
+            };
+
             // Execute the worker code as a function with self and postMessage in scope.
             // The worker code can set self.onmessage and call postMessage() / self.postMessage().
             // We also provide a patched eval that handles Emscripten's `(var X = ...)` pattern,
             // which is invalid as an expression but common in WASM module loaders.
             try {
-                const wrapped = '(function(self, postMessage, __nativeEval) {\n' +
+                const wrapped = '(function(self, postMessage, __nativeEval, importScripts) {\n' +
                     'var eval = function(code) {\n' +
                     '  try { return __nativeEval(code); }\n' +
                     '  catch(e) {\n' +
@@ -1885,7 +1913,7 @@ if (typeof Worker === 'undefined') {
                     '};\n' +
                     code + '\n})';
                 const fn = (0, eval)(wrapped);
-                fn(workerSelf, workerSelf.postMessage, (0, eval));
+                fn(workerSelf, workerSelf.postMessage, (0, eval), workerSelf.importScripts);
             } catch (e) {
                 console.error('[Worker] Initialization error:', e);
                 const w = this;
@@ -2231,6 +2259,225 @@ globalThis.loadGLTF = loadGLTF;
         std::cout << "[Mystral] GLTF loader initialized" << std::endl;
     }
 
+    void setupDraco() {
+#ifdef MYSTRAL_HAS_DRACO
+        if (!jsEngine_) return;
+
+        // Callback-based native Draco decoder: __mystralNativeDecodeDraco(buffer, attrs, callback)
+        // Runs decoding on a libuv thread pool thread, calls callback(result, error) on main thread.
+        jsEngine_->setGlobalProperty("__mystralNativeDecodeDraco",
+            jsEngine_->newFunction("__mystralNativeDecodeDraco", [this](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                if (args.size() < 3) {
+                    std::cerr << "[Draco] __mystralNativeDecodeDraco requires 3 arguments (buffer, attributeMap, callback)" << std::endl;
+                    return jsEngine_->newUndefined();
+                }
+
+                // Get compressed data from ArrayBuffer — must copy since JS buffer may be GC'd
+                size_t compressedSize = 0;
+                void* compressedData = jsEngine_->getArrayBufferData(args[0], &compressedSize);
+                if (!compressedData || compressedSize == 0) {
+                    std::cerr << "[Draco] Invalid compressed data buffer" << std::endl;
+                    return jsEngine_->newUndefined();
+                }
+
+                // Get attribute IDs from the map object
+                auto attrMap = args[1];
+                auto posIdVal = jsEngine_->getProperty(attrMap, "POSITION");
+                auto normIdVal = jsEngine_->getProperty(attrMap, "NORMAL");
+                auto uvIdVal = jsEngine_->getProperty(attrMap, "TEXCOORD_0");
+
+                int posAttrId = jsEngine_->isUndefined(posIdVal) ? -1 : static_cast<int>(jsEngine_->toNumber(posIdVal));
+                int normAttrId = jsEngine_->isUndefined(normIdVal) ? -1 : static_cast<int>(jsEngine_->toNumber(normIdVal));
+                int uvAttrId = jsEngine_->isUndefined(uvIdVal) ? -1 : static_cast<int>(jsEngine_->toNumber(uvIdVal));
+
+                // Protect the callback from GC
+                auto callback = args[2];
+                jsEngine_->protect(callback);
+
+                // Create decode context with a copy of the compressed data
+                auto* decCtx = new DracoDecodeContext();
+                decCtx->work.data = decCtx;
+                decCtx->compressedData.assign(
+                    static_cast<const uint8_t*>(compressedData),
+                    static_cast<const uint8_t*>(compressedData) + compressedSize);
+                decCtx->posAttrId = posAttrId;
+                decCtx->normAttrId = normAttrId;
+                decCtx->uvAttrId = uvAttrId;
+                decCtx->callback = callback;
+                decCtx->runtime = this;
+
+                // Queue decoding on libuv thread pool
+                uv_queue_work(
+                    async::EventLoop::instance().handle(),
+                    &decCtx->work,
+                    // Worker function — runs on thread pool
+                    [](uv_work_t* req) {
+                        auto* dc = static_cast<DracoDecodeContext*>(req->data);
+
+                        draco::DecoderBuffer decoderBuffer;
+                        decoderBuffer.Init(reinterpret_cast<const char*>(dc->compressedData.data()),
+                                           dc->compressedData.size());
+
+                        draco::Decoder decoder;
+                        auto typeResult = draco::Decoder::GetEncodedGeometryType(&decoderBuffer);
+                        if (!typeResult.ok()) {
+                            dc->error = "Failed to get geometry type: " + typeResult.status().error_msg_string();
+                            return;
+                        }
+
+                        if (typeResult.value() != draco::TRIANGULAR_MESH) {
+                            dc->error = "Unsupported geometry type (expected triangular mesh)";
+                            return;
+                        }
+
+                        auto meshResult = decoder.DecodeMeshFromBuffer(&decoderBuffer);
+                        if (!meshResult.ok()) {
+                            dc->error = "Decode failed: " + meshResult.status().error_msg_string();
+                            return;
+                        }
+
+                        auto mesh = std::move(meshResult).value();
+                        uint32_t numPoints = mesh->num_points();
+                        uint32_t numFaces = mesh->num_faces();
+
+                        // Extract positions (vec3)
+                        if (dc->posAttrId >= 0) {
+                            const draco::PointAttribute* attr = mesh->GetAttributeByUniqueId(dc->posAttrId);
+                            if (attr) {
+                                dc->positions.resize(numPoints * 3);
+                                for (draco::PointIndex pi(0); pi < numPoints; ++pi) {
+                                    attr->GetMappedValue(pi, &dc->positions[pi.value() * 3]);
+                                }
+                            }
+                        }
+
+                        // Extract normals (vec3)
+                        if (dc->normAttrId >= 0) {
+                            const draco::PointAttribute* attr = mesh->GetAttributeByUniqueId(dc->normAttrId);
+                            if (attr) {
+                                dc->normals.resize(numPoints * 3);
+                                for (draco::PointIndex pi(0); pi < numPoints; ++pi) {
+                                    attr->GetMappedValue(pi, &dc->normals[pi.value() * 3]);
+                                }
+                            }
+                        }
+
+                        // Extract UVs (vec2)
+                        if (dc->uvAttrId >= 0) {
+                            const draco::PointAttribute* attr = mesh->GetAttributeByUniqueId(dc->uvAttrId);
+                            if (attr) {
+                                dc->uvs.resize(numPoints * 2);
+                                for (draco::PointIndex pi(0); pi < numPoints; ++pi) {
+                                    attr->GetMappedValue(pi, &dc->uvs[pi.value() * 2]);
+                                }
+                            }
+                        }
+
+                        // Extract indices
+                        dc->indices.resize(numFaces * 3);
+                        for (draco::FaceIndex fi(0); fi < numFaces; ++fi) {
+                            const auto& face = mesh->face(fi);
+                            dc->indices[fi.value() * 3 + 0] = face[0].value();
+                            dc->indices[fi.value() * 3 + 1] = face[1].value();
+                            dc->indices[fi.value() * 3 + 2] = face[2].value();
+                        }
+
+                        dc->numPoints = numPoints;
+                        dc->numFaces = numFaces;
+                    },
+                    // After-work callback — runs on main thread (libuv loop iteration)
+                    [](uv_work_t* req, int status) {
+                        auto* dc = static_cast<DracoDecodeContext*>(req->data);
+                        // Queue the result for processing on the JS main thread
+                        std::lock_guard<std::mutex> lock(dc->runtime->dracoMutex_);
+                        dc->runtime->pendingDracoCallbacks_.push(std::unique_ptr<DracoDecodeContext>(dc));
+                    }
+                );
+
+                return jsEngine_->newUndefined();
+            })
+        );
+
+        // Promise-based wrapper: __mystralNativeDecodeDracoAsync(buffer, attrs) → Promise<result>
+        const char* dracoPolyfill = R"(
+globalThis.__mystralNativeDecodeDracoAsync = function(buffer, attrs) {
+    return new Promise(function(resolve, reject) {
+        __mystralNativeDecodeDraco(buffer, attrs, function(result, error) {
+            if (error) {
+                reject(new Error(error));
+            } else {
+                resolve(result);
+            }
+        });
+    });
+};
+)";
+        jsEngine_->eval(dracoPolyfill, "draco-polyfill.js");
+
+        std::cout << "[Mystral] Native Draco decoder initialized (async, libuv thread pool)" << std::endl;
+#endif
+    }
+
+    void processPendingDracoCallbacks() {
+#ifdef MYSTRAL_HAS_DRACO
+        std::queue<std::unique_ptr<DracoDecodeContext>> toProcess;
+        {
+            std::lock_guard<std::mutex> lock(dracoMutex_);
+            std::swap(toProcess, pendingDracoCallbacks_);
+        }
+
+        while (!toProcess.empty()) {
+            auto dc = std::move(toProcess.front());
+            toProcess.pop();
+
+            if (!dc->error.empty()) {
+                // Error — call callback(null, errorString)
+                auto nullVal = jsEngine_->newNull();
+                auto errorVal = jsEngine_->newString(dc->error.c_str());
+                std::vector<js::JSValueHandle> callbackArgs = { nullVal, errorVal };
+                jsEngine_->call(dc->callback, jsEngine_->newUndefined(), callbackArgs);
+                std::cerr << "[Draco] " << dc->error << std::endl;
+            } else {
+                // Success — build JS result object with ArrayBuffers
+                auto result = jsEngine_->newObject();
+
+                if (!dc->positions.empty()) {
+                    jsEngine_->setProperty(result, "positions",
+                        jsEngine_->newArrayBuffer(
+                            reinterpret_cast<const uint8_t*>(dc->positions.data()),
+                            dc->positions.size() * sizeof(float)));
+                }
+                if (!dc->normals.empty()) {
+                    jsEngine_->setProperty(result, "normals",
+                        jsEngine_->newArrayBuffer(
+                            reinterpret_cast<const uint8_t*>(dc->normals.data()),
+                            dc->normals.size() * sizeof(float)));
+                }
+                if (!dc->uvs.empty()) {
+                    jsEngine_->setProperty(result, "uvs",
+                        jsEngine_->newArrayBuffer(
+                            reinterpret_cast<const uint8_t*>(dc->uvs.data()),
+                            dc->uvs.size() * sizeof(float)));
+                }
+                if (!dc->indices.empty()) {
+                    jsEngine_->setProperty(result, "indices",
+                        jsEngine_->newArrayBuffer(
+                            reinterpret_cast<const uint8_t*>(dc->indices.data()),
+                            dc->indices.size() * sizeof(uint32_t)));
+                }
+
+                std::cout << "[Draco] Decoded mesh: " << dc->numPoints << " points, " << dc->numFaces << " faces" << std::endl;
+
+                auto nullVal = jsEngine_->newNull();
+                std::vector<js::JSValueHandle> callbackArgs = { result, nullVal };
+                jsEngine_->call(dc->callback, jsEngine_->newUndefined(), callbackArgs);
+            }
+
+            jsEngine_->unprotect(dc->callback);
+        }
+#endif
+    }
+
     void executeTimerCallbacks() {
 #ifdef MYSTRAL_USE_LIBUV_TIMERS
         // Process pending timer callbacks from libuv
@@ -2430,6 +2677,31 @@ globalThis.loadGLTF = loadGLTF;
         std::string error;
     };
     std::queue<PendingFileCallback> pendingFileCallbacks_;
+
+#ifdef MYSTRAL_HAS_DRACO
+    // Context for async Draco decode work (libuv thread pool)
+    struct DracoDecodeContext {
+        uv_work_t work;
+        // Input (copied from JS, safe to read on worker thread)
+        std::vector<uint8_t> compressedData;
+        int posAttrId = -1;
+        int normAttrId = -1;
+        int uvAttrId = -1;
+        // Output (written by worker thread, read on main thread)
+        std::vector<float> positions;
+        std::vector<float> normals;
+        std::vector<float> uvs;
+        std::vector<uint32_t> indices;
+        uint32_t numPoints = 0;
+        uint32_t numFaces = 0;
+        std::string error;
+        // JS callback + back-reference
+        js::JSValueHandle callback;
+        RuntimeImpl* runtime = nullptr;
+    };
+    std::queue<std::unique_ptr<DracoDecodeContext>> pendingDracoCallbacks_;
+    std::mutex dracoMutex_;
+#endif
 
     // DOM Event system
     struct EventListener {

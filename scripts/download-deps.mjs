@@ -275,6 +275,34 @@ const DEPS = {
     },
     extractTo: 'libuv',
   },
+  draco: {
+    // Draco mesh compression library for native C++ decoding
+    // Bypasses WASM/Worker entirely for Draco-compressed glTF meshes
+    // https://github.com/mystralengine/library-builder/releases
+    version: 'draco-1.5.7-1',
+    getUrl: () => {
+      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/draco-1.5.7-1';
+      if (platformName === 'macos') {
+        const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
+        return `${baseUrl}/draco-mac-${arch}.zip`;
+      } else if (platformName === 'linux') {
+        if (ARCH !== 'x64') {
+          console.warn(`Draco prebuilts not available for ${platformName}-${archName}`);
+          return null;
+        }
+        return `${baseUrl}/draco-linux-x64.zip`;
+      } else if (platformName === 'windows') {
+        if (ARCH !== 'x64') {
+          console.warn(`Draco prebuilts not available for ${platformName}-${archName}`);
+          return null;
+        }
+        return `${baseUrl}/draco-win-x64.zip`;
+      }
+      console.warn(`Draco prebuilts not available for ${platformName}-${archName}`);
+      return null;
+    },
+    extractTo: 'draco',
+  },
   'skia-win-static': {
     // Static Skia + Dawn for Windows from mystralengine/library-builder
     // This build uses /MT (static CRT) and includes dawn_combined.lib with
@@ -658,7 +686,7 @@ async function main() {
   const onlyIndex = args.indexOf('--only');
 
   // Desktop deps (downloaded by default)
-  const desktopDeps = ['wgpu', 'sdl3', 'dawn', 'v8', 'quickjs', 'stb', 'cgltf', 'webp', 'skia', 'swc', 'libuv'];
+  const desktopDeps = ['wgpu', 'sdl3', 'dawn', 'v8', 'quickjs', 'stb', 'cgltf', 'webp', 'skia', 'swc', 'libuv', 'draco'];
 
   // iOS deps (only downloaded with --only or --ios)
   const iosDeps = ['wgpu-ios', 'skia-ios'];
