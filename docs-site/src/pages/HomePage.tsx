@@ -1,6 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+function detectOS(): 'unix' | 'windows' {
+  if (typeof navigator === 'undefined') return 'unix';
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('win')) return 'windows';
+  return 'unix';
+}
+
 export default function HomePage() {
+  const [tab, setTab] = useState<'unix' | 'windows'>(detectOS);
+
   return (
     <>
       <nav className="navbar">
@@ -22,19 +32,31 @@ export default function HomePage() {
             alt="Mystral Native.js"
             style={{ maxWidth: '500px', width: '100%', marginBottom: '24px', borderRadius: '12px' }}
           />
-          <h1>Mystral Native.js</h1>
           <p>
             Run WebGPU games natively with JavaScript. Build once, run everywhere —
             macOS, Windows, Linux, iOS, and Android.
           </p>
 
-          <div className="install-command">
-            <div style={{ marginBottom: '8px', color: '#8b949e', fontSize: '0.8rem' }}>macOS / Linux</div>
-            <div>curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash</div>
-          </div>
-          <div className="install-command">
-            <div style={{ marginBottom: '8px', color: '#8b949e', fontSize: '0.8rem' }}>Windows (PowerShell)</div>
-            <div>irm https://mystralengine.github.io/mystralnative/install.ps1 | iex</div>
+          <div className="install-tabs">
+            <div className="install-tab-buttons">
+              <button
+                className={`install-tab-btn ${tab === 'unix' ? 'active' : ''}`}
+                onClick={() => setTab('unix')}
+              >
+                macOS / Linux
+              </button>
+              <button
+                className={`install-tab-btn ${tab === 'windows' ? 'active' : ''}`}
+                onClick={() => setTab('windows')}
+              >
+                Windows
+              </button>
+            </div>
+            <div className="install-command">
+              {tab === 'unix'
+                ? 'curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash'
+                : 'irm https://mystralengine.github.io/mystralnative/install.ps1 | iex'}
+            </div>
           </div>
 
           <div className="hero-buttons">
