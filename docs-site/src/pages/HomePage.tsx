@@ -10,6 +10,7 @@ function detectOS(): 'unix' | 'windows' {
 
 export default function HomePage() {
   const [tab, setTab] = useState<'unix' | 'windows'>(detectOS);
+  const [copied, setCopied] = useState(false);
 
   return (
     <>
@@ -53,9 +54,24 @@ export default function HomePage() {
               </button>
             </div>
             <div className="install-command">
-              {tab === 'unix'
-                ? 'curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash'
-                : 'irm https://mystralengine.github.io/mystralnative/install.ps1 | iex'}
+              <code>
+                {tab === 'unix'
+                  ? 'curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash'
+                  : 'irm https://mystralengine.github.io/mystralnative/install.ps1 | iex'}
+              </code>
+              <button
+                className="install-copy-btn"
+                onClick={async () => {
+                  const text = tab === 'unix'
+                    ? 'curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash'
+                    : 'irm https://mystralengine.github.io/mystralnative/install.ps1 | iex';
+                  await navigator.clipboard.writeText(text);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1000);
+                }}
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
             </div>
           </div>
 
