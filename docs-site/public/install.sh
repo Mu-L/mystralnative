@@ -103,17 +103,8 @@ get_latest_version() {
 select_build() {
     # Default to V8 + Dawn for best compatibility
     # Dawn is recommended for mystral-helmet and full Mystral Engine demos
+    JS_ENGINE="v8"
     WEBGPU_BACKEND="dawn"
-
-    # Select JS engine based on platform
-    # macOS x64 only has JSC builds (V8 not available for legacy Intel Macs)
-    if [ "$PLATFORM" = "macOS-x64" ]; then
-        JS_ENGINE="jsc"
-        warn "Intel Mac detected. Using JSC engine (V8 not available for x64)."
-        warn "Note: Requires macOS 14+ (Sonoma) due to Metal API requirements."
-    else
-        JS_ENGINE="v8"
-    fi
 
     BUILD_NAME="mystral-${PLATFORM}-${JS_ENGINE}-${WEBGPU_BACKEND}"
     DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/${BUILD_NAME}.zip"
@@ -145,16 +136,8 @@ download_and_install() {
         error "unzip is required but not installed."
     fi
 
-    # Remove the zip before moving extracted files
-    rm -f "$zipfile"
-
     # Move files to install directory
-    # Handle both nested (files in $BUILD_NAME/ subdir) and flat (files at root) zip structures
-    if [ -d "$tmpdir/$BUILD_NAME" ]; then
-        mv "$tmpdir/$BUILD_NAME"/* "$INSTALL_DIR/"
-    else
-        mv "$tmpdir"/* "$INSTALL_DIR/"
-    fi
+    mv "$tmpdir/$BUILD_NAME"/* "$INSTALL_DIR/" 2>/dev/null || mv "$tmpdir"/*/* "$INSTALL_DIR/" 2>/dev/null || true
 
     # Make executable
     chmod +x "$INSTALL_DIR/mystral"
@@ -164,8 +147,6 @@ download_and_install() {
 
     success "Installed to $INSTALL_DIR"
 }
-
-CONFIGURED_SHELL_PROFILE=""
 
 setup_path() {
     local shell_profile=""
@@ -198,10 +179,8 @@ setup_path() {
             echo "" >> "$shell_profile"
             echo "# MystralNative" >> "$shell_profile"
             echo "$path_line" >> "$shell_profile"
-            CONFIGURED_SHELL_PROFILE="$shell_profile"
             info "Added $INSTALL_DIR to PATH in $shell_profile"
         else
-            CONFIGURED_SHELL_PROFILE="$shell_profile"
             info "PATH already configured in $shell_profile"
         fi
     else
@@ -214,15 +193,10 @@ verify_installation() {
     if [ -x "$INSTALL_DIR/mystral" ]; then
         success "Installation complete!"
         echo ""
-        echo "To use mystral in this terminal session, run:"
+        echo "To use mystral in this terminal:"
         echo -e "  ${BLUE}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
         echo ""
-        if [ -n "$CONFIGURED_SHELL_PROFILE" ]; then
-            echo -e "PATH has been added to ${BLUE}$CONFIGURED_SHELL_PROFILE${NC} for future terminal sessions."
-        else
-            echo "To make this permanent, add the following to your shell config (e.g. ~/.bashrc or ~/.zshrc):"
-            echo -e "  ${BLUE}export PATH=\"\$PATH:$INSTALL_DIR\"${NC}"
-        fi
+        echo "Or start a new terminal session."
         echo ""
         echo "Test your installation:"
         echo -e "  ${BLUE}mystral --version${NC}"

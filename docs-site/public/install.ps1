@@ -43,16 +43,10 @@ function Write-Error-Exit($msg) {
 }
 
 function Get-Platform {
-    $arch = $env:PROCESSOR_ARCHITECTURE
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
     switch ($arch) {
-        "AMD64" { return "windows-x64" }
-        "ARM64" { return "windows-arm64" }
-        "x86"   {
-            # 32-bit PowerShell on 64-bit OS reports x86; check the real OS arch
-            $osArch = (Get-CimInstance Win32_OperatingSystem).OSArchitecture
-            if ($osArch -like "64*" -or $osArch -like "*x64*") { return "windows-x64" }
-            Write-Error-Exit "32-bit Windows is not supported."
-        }
+        "X64"   { return "windows-x64" }
+        "Arm64" { return "windows-arm64" }
         default { Write-Error-Exit "Unsupported architecture: $arch" }
     }
 }
@@ -103,15 +97,13 @@ function Install-Mystral {
 
     Expand-Archive -Path $zipFile -DestinationPath $tmpDir -Force
 
-    # Remove zip before moving files
-    Remove-Item -Path $zipFile -Force
-
-    # Move files — handle both nested ($buildName/ subdir) and flat (files at root) zip structures
-    $nestedDir = Join-Path $tmpDir $buildName
-    if (Test-Path $nestedDir) {
-        Get-ChildItem -Path $nestedDir | Move-Item -Destination $InstallDir -Force
+    # Move files — handle nested directory from zip
+    $extracted = Get-ChildItem -Path $tmpDir -Directory | Where-Object { $_.Name -ne "mystral-install-*" } | Select-Object -First 1
+    if ($extracted) {
+        Get-ChildItem -Path $extracted.FullName | Move-Item -Destination $InstallDir -Force
     } else {
-        Get-ChildItem -Path $tmpDir | Move-Item -Destination $InstallDir -Force
+        # Files might be at the root of the zip
+        Get-ChildItem -Path $tmpDir -Exclude "mystral.zip" | Move-Item -Destination $InstallDir -Force
     }
 
     # Cleanup

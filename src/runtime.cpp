@@ -49,20 +49,9 @@
 
 // Draco mesh decoder (conditional)
 #ifdef MYSTRAL_HAS_DRACO
-// Windows min/max macros from <windows.h> conflict with std::numeric_limits in Draco headers
-#ifdef _WIN32
-#pragma push_macro("min")
-#pragma push_macro("max")
-#undef min
-#undef max
-#endif
 #include <draco/compression/decode.h>
 #include <draco/mesh/mesh.h>
 #include <draco/core/decoder_buffer.h>
-#ifdef _WIN32
-#pragma pop_macro("min")
-#pragma pop_macro("max")
-#endif
 #endif
 #include <cstdlib>
 #include <cstring>
@@ -389,9 +378,6 @@ public:
         // Set up performance API
         setupPerformance();
 
-        // Set up Node.js-compatible process object (process.exit, etc.)
-        setupProcess();
-
         // Set up fetch API
         setupFetch();
 
@@ -644,16 +630,12 @@ public:
     // ========================================================================
 
     void run() override {
-        // Check if script already called process.exit() during loading
-        if (!running_) {
-            std::cout << "[Mystral] Skipping main loop (process.exit already called)" << std::endl;
-            return;
-        }
-
         std::cout << "[Mystral] Starting main loop..." << std::endl;
 
         // Mock event removed - was causing rotation without mouse button press
-        // sendMockPointerEvent()
+        // sendMockPointerEvent();
+
+        running_ = true;
 
         // In no-SDL mode, track consecutive idle frames to detect when script is done
         int idleFrames = 0;
@@ -778,10 +760,6 @@ public:
     void quit() override {
         std::cout << "[Mystral] Quit requested" << std::endl;
         running_ = false;
-    }
-
-    int getExitCode() const override {
-        return exitCode_;
     }
 
     // ========================================================================
@@ -1176,50 +1154,6 @@ private:
         );
 
         jsEngine_->setGlobalProperty("performance", performance);
-    }
-
-    void setupProcess() {
-        if (!jsEngine_) return;
-
-        // Create Node.js-compatible process object
-        auto process = jsEngine_->newObject();
-
-        // process.exit(code) - cleanly exit the application
-        jsEngine_->setProperty(process, "exit",
-            jsEngine_->newFunction("exit", [this](void* ctx, const std::vector<js::JSValueHandle>& args) {
-                int exitCode = 0;
-                if (!args.empty()) {
-                    exitCode = static_cast<int>(jsEngine_->toNumber(args[0]));
-                }
-                std::cout << "[Mystral] process.exit(" << exitCode << ") called" << std::endl;
-                exitCode_ = exitCode;
-                running_ = false;
-                return jsEngine_->newUndefined();
-            })
-        );
-
-        // process.platform - useful for platform-specific code
-#if defined(__APPLE__)
-        jsEngine_->setProperty(process, "platform", jsEngine_->newString("darwin"));
-#elif defined(_WIN32)
-        jsEngine_->setProperty(process, "platform", jsEngine_->newString("win32"));
-#elif defined(__linux__)
-        jsEngine_->setProperty(process, "platform", jsEngine_->newString("linux"));
-#elif defined(__ANDROID__)
-        jsEngine_->setProperty(process, "platform", jsEngine_->newString("android"));
-#else
-        jsEngine_->setProperty(process, "platform", jsEngine_->newString("unknown"));
-#endif
-
-        // process.argv - command line arguments (placeholder for now)
-        auto argv = jsEngine_->newArray();
-        jsEngine_->setProperty(process, "argv", argv);
-
-        // process.env - environment variables (empty object for now, could populate later)
-        auto env = jsEngine_->newObject();
-        jsEngine_->setProperty(process, "env", env);
-
-        jsEngine_->setGlobalProperty("process", process);
     }
 
     void setupFetch() {
@@ -2686,7 +2620,6 @@ globalThis.__mystralNativeDecodeDracoAsync = function(buffer, attrs) {
 
     RuntimeConfig config_;
     bool running_;
-    int exitCode_ = 0;  // Exit code set by process.exit()
     int width_;
     int height_;
 
@@ -3019,10 +2952,6 @@ globalThis.__mystralNativeDecodeDracoAsync = function(buffer, attrs) {
         // Note: We use the global object as window, and also set 'window' as a global property
         auto window = jsEngine_->getGlobal();
         jsEngine_->setGlobalProperty("window", window);
-
-        // Set 'self' to point to global object (required by Three.js and other libs)
-        // In browsers, 'self' refers to the global object (same as 'this' at global scope)
-        jsEngine_->setGlobalProperty("self", window);
 
         // Also set document as window.document (browsers have both)
         jsEngine_->setProperty(window, "document", document);

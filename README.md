@@ -2,12 +2,6 @@
   <img src="mystralnative.jpg" alt="Mystral Native.js" width="600" />
 </p>
 
-<p align="center">
-  <a href="https://discord.gg/jUYC9dMbu5"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
-  <a href="https://github.com/mystralengine/mystralnative/releases"><img src="https://img.shields.io/github/v/release/mystralengine/mystralnative?label=Release" alt="Release" /></a>
-  <a href="https://github.com/mystralengine/mystralnative/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
-</p>
-
 # Mystral Native.js
 
 **Run JavaScript/TypeScript games natively with WebGPU.** Mystral Native.js is a lightweight runtime that lets you write games using familiar Web APIs (WebGPU, Canvas, Audio, fetch) and run them as native desktop applications on macOS, Windows, and Linux.
@@ -16,7 +10,6 @@ Think of it as "Electron for games" but without Chromium — just your game code
 
 > [!NOTE]
 > Mystral Native.js is in **early alpha**. The core features work — execute JS against WebGPU, Canvas 2D, Web Audio, and fetch — with runtimes available for **macOS**, **Windows**, and **Linux**. Embedding is available for **iOS** and **Android**, with a future goal of console support.
-> To see a production build, check out the [Sponza demo on itch.io](https://mystraldev.itch.io/sponza-in-webgpu-mystral-engine).
 
 ## Quick Start
 
@@ -34,20 +27,16 @@ curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash
 irm https://mystralengine.github.io/mystralnative/install.ps1 | iex
 ```
 
-This detects your platform, downloads the latest release, installs to `~/.mystral/` (or `$HOME\.mystral\` on Windows), and adds `mystral` to your PATH. Then run the examples:
+This detects your platform, downloads the latest release, installs to `~/.mystral/` (or `$HOME\.mystral\` on Windows), and adds `mystral` to your PATH. Then run an example:
 
 ```bash
 # macOS / Linux
-cd ~/.mystral
-mystral run examples/triangle.js
-mystral run examples/mystral-helmet.js  # GLTF loading demo
+mystral run ~/.mystral/examples/triangle.js
 ```
 
 ```powershell
 # Windows (PowerShell)
-cd $HOME\.mystral
-mystral run examples\triangle.js
-mystral run examples\mystral-helmet.js  # GLTF loading demo
+mystral.exe run $HOME\.mystral\examples\triangle.js
 ```
 
 ### Option 2: Download Prebuilt Binary
@@ -174,11 +163,6 @@ mystral run examples/daynight.js
 # Sponza palace with day/night, torches, fireflies (Dawn builds only)
 mystral run examples/sponza.js
 
-# Three.js WebGPU (requires bundling, see docs site for full guide)
-npm install three@0.182.0
-npx esbuild examples/threejs-cube-src.js --bundle --outfile=threejs-bundle.js --format=esm --platform=browser
-mystral run threejs-bundle.js
-
 # Custom window size
 mystral run examples/simple-cube.js --width 1920 --height 1080
 
@@ -215,21 +199,6 @@ mystral compile game.js --include assets --bundle-only --out dist/game.bundle
 ```
 
 See the [distribution guide](https://mystralengine.github.io/mystralnative/docs/api/cli) for platform-specific packaging details including macOS `.app` bundles, code signing, and more.
-
-### Production Builds
-
-Use the production build script to create stripped, optimized, asset-filtered builds locally (mirrors CI):
-
-```bash
-# Full production build of Sponza demo (strips binary, filters assets, creates .app + .zip)
-./scripts/build-production.sh
-
-# Build a different demo
-./scripts/build-production.sh --demo helmet
-
-# Skip cmake rebuild (repackage with existing binary)
-./scripts/build-production.sh --skip-build
-```
 
 ## CLI Reference
 
@@ -364,7 +333,6 @@ All dependencies are downloaded automatically as prebuilt binaries:
 | Skia | Canvas 2D rendering |
 | libcurl | HTTP requests |
 | libuv | Async I/O, timers, file watching |
-| Draco | Native Draco mesh decompression (optional) |
 | SWC | TypeScript transpiling |
 
 Prebuilt dependency binaries are managed via [mystralengine/library-builder](https://github.com/mystralengine/library-builder).
@@ -372,10 +340,6 @@ Prebuilt dependency binaries are managed via [mystralengine/library-builder](htt
 ## Documentation
 
 Full documentation is available at [mystralengine.github.io/mystralnative](https://mystralengine.github.io/mystralnative/).
-
-- [Three.js WebGPU Guide](https://mystralengine.github.io/mystralnative/docs/guides/threejs) - Using Three.js with MystralNative
-- [CLI Reference](https://mystralengine.github.io/mystralnative/docs/api/cli) - Command line options
-- [Building from Source](https://mystralengine.github.io/mystralnative/docs/guides/building) - Build configuration options
 
 ## Contributing
 

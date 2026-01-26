@@ -20,9 +20,6 @@ export default function HomePage() {
         </Link>
         <div className="navbar-links">
           <Link to="/docs/getting-started">Docs</Link>
-          <a href="https://discord.gg/jUYC9dMbu5" target="_blank" rel="noopener">
-            Discord
-          </a>
           <a href="https://github.com/mystralengine/mystralnative" target="_blank" rel="noopener">
             GitHub
           </a>
@@ -95,10 +92,10 @@ export default function HomePage() {
 
         <section className="features">
           <div className="feature">
-            <h3>No Browser Required</h3>
+            <h3>Native Performance</h3>
             <p>
-              Write games with standard Web APIs — WebGPU, Canvas 2D, Web Audio, fetch —
-              and run them natively. No Chromium, no Electron.
+              Run WebGPU games at native speed with Dawn or wgpu-native backends.
+              No browser overhead.
             </p>
           </div>
 
