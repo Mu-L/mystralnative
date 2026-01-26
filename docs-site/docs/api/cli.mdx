@@ -28,10 +28,13 @@ mystral run <script.js> [options]
 |--------|------|---------|-------------|
 | `--width` | number | 1280 | Window width in pixels |
 | `--height` | number | 720 | Window height in pixels |
-| `--title` | string | "MystralNative" | Window title |
+| `--title` | string | "Mystral" | Window title |
 | `--headless` | flag | - | Run without displaying a window |
+| `--no-sdl` | flag | - | Run without SDL (headless GPU, no window system) |
+| `--watch`, `-w` | flag | - | Watch mode: auto-reload on file changes |
 | `--screenshot` | string | - | Take screenshot and exit |
 | `--frames` | number | 60 | Frames to render before screenshot |
+| `--quiet`, `-q` | flag | - | Suppress all output except errors |
 
 ### Examples
 
@@ -64,21 +67,42 @@ mystral compile <entry.js> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--out` | string | - | Output file path |
-| `--include` | string | - | Additional directories to bundle |
+| `--output`, `--out`, `-o` | string | `./<entry-stem>` | Output file path |
+| `--include`, `--assets` | string | - | Asset directory to bundle (repeatable) |
+| `--root` | string | cwd | Root directory for bundle paths |
+| `--bundle-only` | flag | - | Create standalone `.bundle` file instead of executable |
 
 ### Examples
 
 ```bash
-# Basic compile
-mystral compile game.js --out dist/my-game
-
-# Include assets directory
+# Compile into a standalone binary
 mystral compile game.js --include assets --out dist/my-game
-
-# The output is a self-contained binary
 ./dist/my-game
+
+# Include multiple asset directories
+mystral compile game.js --include assets --include sounds --out dist/my-game
+
+# Create a .bundle file for macOS .app packaging
+mystral compile game.js --include assets --bundle-only --out dist/game.bundle
 ```
+
+### Bundle Mode
+
+The `--bundle-only` flag creates a standalone `.bundle` file containing your JS entry point and assets, without copying the runtime executable. This is used for macOS `.app` packaging where the clean Mach-O binary needs to be code-signed separately:
+
+```bash
+# 1. Create the bundle
+mystral compile game.js --include assets --bundle-only --out build/game.bundle
+
+# 2. Package as macOS .app (using package-app.sh)
+./scripts/package-app.sh \
+    --binary build/mystral \
+    --name "My Game" \
+    --bundle build/game.bundle \
+    --output dist
+```
+
+At runtime, the binary auto-detects `game.bundle` next to the executable, in `../Resources/` (macOS `.app`), or via the `MYSTRAL_BUNDLE` environment variable.
 
 ## Global Options
 
@@ -103,6 +127,9 @@ These options work with any command:
 |----------|-------------|
 | `MYSTRAL_DEBUG` | Enable debug logging |
 | `MYSTRAL_ASSET_PATH` | Override default asset search path |
+| `MYSTRAL_BUNDLE` | Path to an external `.bundle` file to load |
+| `MYSTRAL_HEADLESS` | Set to `1` to force headless mode |
+| `V8_FLAGS` | V8 engine flags (e.g., `--max-old-space-size=4096`) |
 
 ## File Types
 

@@ -65,14 +65,14 @@ bun run build
 Choose your JavaScript engine:
 
 ```bash
-# QuickJS (default) - smallest binary, no JIT
+# V8 (recommended) - full ES2024+, JIT compilation, Chrome-compatible
+cmake -B build -DMYSTRAL_USE_V8=ON -DMYSTRAL_USE_QUICKJS=OFF
+
+# QuickJS - smallest binary, no JIT, good for CI
 cmake -B build -DMYSTRAL_USE_QUICKJS=ON
 
-# V8 - full ES2024+, JIT compilation
-cmake -B build -DMYSTRAL_USE_V8=ON
-
-# JavaScriptCore - macOS/iOS system engine
-cmake -B build -DMYSTRAL_USE_JSC=ON
+# JavaScriptCore - macOS/iOS system engine, smallest macOS binary
+cmake -B build -DMYSTRAL_USE_JSC=ON -DMYSTRAL_USE_QUICKJS=OFF
 ```
 
 ### WebGPU Backend
@@ -80,20 +80,22 @@ cmake -B build -DMYSTRAL_USE_JSC=ON
 Choose your WebGPU implementation:
 
 ```bash
-# wgpu-native (default) - Rust implementation, best iOS support
-cmake -B build -DMYSTRAL_USE_WGPU=ON
+# Dawn (recommended) - Chrome's implementation, best shader compatibility
+cmake -B build -DMYSTRAL_USE_DAWN=ON -DMYSTRAL_USE_WGPU=OFF
 
-# Dawn - Chrome's implementation, best shader compatibility
-cmake -B build -DMYSTRAL_USE_DAWN=ON
+# wgpu-native - Rust implementation, best iOS/Android support
+cmake -B build -DMYSTRAL_USE_WGPU=ON
 ```
 
 ### Combined Example
 
 ```bash
-# V8 + Dawn (recommended for desktop)
+# V8 + Dawn (recommended for desktop development)
 cmake -B build \
     -DMYSTRAL_USE_V8=ON \
     -DMYSTRAL_USE_DAWN=ON \
+    -DMYSTRAL_USE_QUICKJS=OFF \
+    -DMYSTRAL_USE_WGPU=OFF \
     -DCMAKE_BUILD_TYPE=Release
 
 cmake --build build --config Release

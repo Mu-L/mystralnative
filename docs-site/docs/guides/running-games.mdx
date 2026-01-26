@@ -25,6 +25,29 @@ mystral run game.js --title "My Awesome Game"
 mystral run game.js --width 1280 --height 720 --title "Demo"
 ```
 
+## Watch Mode
+
+Auto-reload your script when files change during development:
+
+```bash
+# Watch for file changes and reload automatically
+mystral run game.js --watch
+
+# Short form
+mystral run game.js -w
+
+# Combine with other options
+mystral run game.js --watch --width 1920 --height 1080
+```
+
+When the watched file changes:
+1. All timers (setTimeout/setInterval) are cleared
+2. All requestAnimationFrame callbacks are cancelled
+3. Module caches are cleared
+4. The script is re-executed from scratch
+
+This enables fast iteration without restarting the runtime.
+
 ## Headless Mode
 
 Run without displaying a window (useful for CI/testing):
@@ -38,6 +61,9 @@ mystral run game.js --headless --screenshot output.png
 
 # Wait for specific frame count before screenshot
 mystral run game.js --headless --screenshot output.png --frames 120
+
+# Suppress output (quiet mode)
+mystral run game.js --headless --quiet
 ```
 
 ## TypeScript Support

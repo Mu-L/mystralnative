@@ -6,15 +6,20 @@ MystralNative implements standard Web APIs for graphics, audio, networking, and 
 
 | API | Status | Notes |
 |-----|--------|-------|
-| WebGPU | Full | Core graphics API |
+| WebGPU | Full | Core graphics API via Dawn or wgpu-native |
 | Canvas 2D | Full | Skia-based implementation |
 | Web Audio | Full | SDL3-based audio |
-| fetch | Full | HTTP/HTTPS and file:// |
+| fetch | Full | HTTP/HTTPS and file:// protocols |
+| URL / URLSearchParams | Full | URL parsing and query string handling |
+| Worker | Partial | Main-thread polyfill with async message passing |
+| Blob | Full | Binary data containers |
+| TextEncoder / TextDecoder | Full | UTF-8 encoding/decoding |
 | Gamepad | Full | Controller support |
 | requestAnimationFrame | Full | Frame timing |
 | setTimeout/setInterval | Full | Timing functions |
 | ES Modules | Full | import/export |
 | TypeScript | Full | Via SWC transpilation |
+| GLTF/GLB Loading | Full | Including Draco mesh compression |
 
 ## WebGPU
 
@@ -237,6 +242,44 @@ console.warn("Warning message");
 console.error("Error message");
 console.debug("Debug message");
 ```
+
+## URL
+
+Standard URL parsing and blob URL support.
+
+```javascript
+// Parse URLs
+const url = new URL("https://example.com/path?key=value#hash");
+console.log(url.hostname); // "example.com"
+console.log(url.pathname); // "/path"
+
+// Query parameters
+const params = new URLSearchParams("foo=1&bar=2");
+params.get("foo"); // "1"
+
+// Blob URLs (used internally by libraries like Draco decoder)
+const blob = new Blob(["console.log('hello')"]);
+const blobUrl = URL.createObjectURL(blob);
+URL.revokeObjectURL(blobUrl);
+```
+
+## Worker
+
+Main-thread Worker polyfill that enables WebWorker-based libraries (like Draco mesh decoders) to function in the native runtime. Workers run on the main thread with async message passing via `setTimeout`.
+
+```javascript
+// Create a worker from a blob URL
+const code = `self.onmessage = (e) => { postMessage(e.data * 2); };`;
+const blob = new Blob([code]);
+const url = URL.createObjectURL(blob);
+const worker = new Worker(url);
+
+worker.onmessage = (e) => console.log("Result:", e.data);
+worker.postMessage(21); // Result: 42
+worker.terminate();
+```
+
+> **Note:** Workers run on the main thread, not in a separate thread. This is sufficient for libraries that use Workers for code isolation (like Draco) but won't provide parallel execution.
 
 ## Next Steps
 

@@ -30,6 +30,15 @@ MYSTRAL_DEBUG=1 mystral run game.js
 
 # Custom asset path
 MYSTRAL_ASSET_PATH=/path/to/assets mystral run game.js
+
+# Load an external bundle file
+MYSTRAL_BUNDLE=path/to/game.bundle mystral run game.js
+
+# Force headless mode
+MYSTRAL_HEADLESS=1 mystral run game.js
+
+# Increase V8 heap size for complex scenes
+V8_FLAGS="--max-old-space-size=4096" mystral run game.js
 ```
 
 ## Build Configuration
@@ -38,11 +47,11 @@ MYSTRAL_ASSET_PATH=/path/to/assets mystral run game.js
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `MYSTRAL_USE_QUICKJS` | ON | Use QuickJS engine |
-| `MYSTRAL_USE_V8` | OFF | Use V8 engine |
-| `MYSTRAL_USE_JSC` | OFF | Use JavaScriptCore |
+| `MYSTRAL_USE_V8` | OFF | Use V8 engine (recommended) |
+| `MYSTRAL_USE_QUICKJS` | ON | Use QuickJS engine (smallest binary) |
+| `MYSTRAL_USE_JSC` | OFF | Use JavaScriptCore (macOS/iOS) |
+| `MYSTRAL_USE_DAWN` | OFF | Use Dawn (recommended for desktop) |
 | `MYSTRAL_USE_WGPU` | ON | Use wgpu-native |
-| `MYSTRAL_USE_DAWN` | OFF | Use Dawn |
 | `MYSTRAL_BUILD_EXAMPLES` | ON | Build example files |
 | `MYSTRAL_BUILD_TESTS` | OFF | Build test suite |
 

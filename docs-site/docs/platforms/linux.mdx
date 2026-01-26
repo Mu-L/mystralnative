@@ -11,10 +11,10 @@ Platform-specific information for running MystralNative on Linux.
 ## Recommended Build
 
 ```
-mystral-linux-x64-v8-wgpu.zip
+mystral-linux-x64-v8-dawn.zip
 ```
 
-**V8 + wgpu-native** provides the best Linux experience with Vulkan backend.
+**V8 + Dawn** is recommended for full WebGPU shader compatibility on Linux.
 
 ## Installation
 
@@ -28,7 +28,7 @@ curl -fsSL https://mystralengine.github.io/mystralnative/install.sh | bash
 
 ```bash
 # Download
-curl -L -o mystral.zip https://github.com/mystralengine/mystralnative/releases/latest/download/mystral-linux-x64-v8-wgpu.zip
+curl -L -o mystral.zip https://github.com/mystralengine/mystralnative/releases/latest/download/mystral-linux-x64-v8-dawn.zip
 
 # Extract
 unzip mystral.zip
@@ -126,10 +126,9 @@ bun run build
 
 | JS Engine | WebGPU Backend | Notes |
 |-----------|----------------|-------|
-| V8 | wgpu-native | Recommended, Vulkan backend |
+| V8 | Dawn | Recommended, Vulkan backend |
+| V8 | wgpu-native | Alternative Vulkan backend |
 | QuickJS | wgpu-native | Smaller binary |
-
-**Note**: Dawn builds are not officially supported on Linux yet due to build complexity.
 
 ## GPU Drivers
 
