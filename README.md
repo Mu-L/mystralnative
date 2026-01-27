@@ -16,6 +16,7 @@ Think of it as "Electron for games" but without Chromium — just your game code
 
 > [!NOTE]
 > Mystral Native.js is in **early alpha**. The core features work — execute JS against WebGPU, Canvas 2D, Web Audio, and fetch — with runtimes available for **macOS**, **Windows**, and **Linux**. Embedding is available for **iOS** and **Android**, with a future goal of console support.
+> To see a production build, check out the [Sponza demo on itch.io](https://mystraldev.itch.io/sponza-in-webgpu-mystral-engine).
 
 ## Quick Start
 
