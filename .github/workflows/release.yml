@@ -423,6 +423,8 @@ jobs:
           echo "Updating source files to version $VERSION"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          # Checkout main so we can commit and push to it
+          git checkout main
           node scripts/set-version.mjs "$VERSION"
           git add package.json CMakeLists.txt include/mystral/runtime.h
           git diff --cached --quiet || {
