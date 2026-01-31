@@ -665,30 +665,17 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                 g_engine->setGlobalProperty(globalName.c_str(), element);
 
                 // Create getContext function
-                // We use a native function and store the canvasId in a global lookup table
-                // since lambdas can't capture by value in this context
-                auto getContextFn = g_engine->newFunction("getContext", [](void* c, const std::vector<js::JSValueHandle>& contextArgs) {
+                // Capture canvasId to ensure each canvas element's getContext uses its own canvas
+                // This fixes the bug where all canvases shared the same context
+                auto getContextFn = g_engine->newFunction("getContext", [canvasId, canvasPtr](void* c, const std::vector<js::JSValueHandle>& contextArgs) {
                     if (contextArgs.empty()) {
                         return g_engine->newNull();
                     }
 
                     std::string contextType = g_engine->toString(contextArgs[0]);
 
-                    // The canvas ID is passed as an extra argument by a JS wrapper
-                    // We need to find the canvas ID from the context
-                    // For now, use a simpler approach: look up by the _offscreenCanvasId property
-                    // that was set on 'this' (but we can't access 'this' in native functions)
-
-                    // Alternative: use the last created canvas (for simple cases)
-                    // This is a workaround until we have proper 'this' binding
-                    if (g_offscreenCanvases.empty()) {
-                        std::cerr << "[Canvas] No offscreen canvases registered" << std::endl;
-                        return g_engine->newNull();
-                    }
-
-                    // Find the canvas - for now use the last one created
-                    // TODO: Proper 'this' binding support
-                    int canvasId = g_nextOffscreenCanvasId - 1;
+                    // Use the captured canvasId to find the correct canvas
+                    // This ensures each canvas element's getContext returns its own context
                     auto it = g_offscreenCanvases.find(canvasId);
                     if (it == g_offscreenCanvases.end()) {
                         std::cerr << "[Canvas] Canvas not found: " << canvasId << std::endl;
@@ -1268,6 +1255,13 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 sourceObj = source; // source might be passed directly
                             }
 
+                            // Parse flipY option (default false per WebGPU spec)
+                            bool flipY = false;
+                            auto flipYProp = g_engine->getProperty(source, "flipY");
+                            if (!g_engine->isUndefined(flipYProp)) {
+                                flipY = g_engine->toBoolean(flipYProp);
+                            }
+
                             int imgWidth = 0;
                             int imgHeight = 0;
                             size_t dataSize = 0;
@@ -1387,6 +1381,23 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 if (!g_engine->isUndefined(heightVal)) height = (uint32_t)g_engine->toNumber(heightVal);
                             }
 
+                            // Handle flipY by creating a flipped copy of the data
+                            std::vector<uint8_t> flippedData;
+                            void* uploadDataPtr = dataPtr;
+                            if (flipY && dataPtr && imgHeight > 0) {
+                                size_t bytesPerRow = imgWidth * 4;  // RGBA
+                                flippedData.resize(dataSize);
+                                const uint8_t* srcData = static_cast<const uint8_t*>(dataPtr);
+                                for (int y = 0; y < imgHeight; y++) {
+                                    // Copy row (imgHeight - 1 - y) to row y
+                                    const uint8_t* srcRow = srcData + (imgHeight - 1 - y) * bytesPerRow;
+                                    uint8_t* dstRow = flippedData.data() + y * bytesPerRow;
+                                    std::memcpy(dstRow, srcRow, bytesPerRow);
+                                }
+                                uploadDataPtr = flippedData.data();
+                                if (g_verboseLogging) std::cout << "[WebGPU] copyExternalImageToTexture: flipY applied" << std::endl;
+                            }
+
                             // Use writeTexture internally (same effect as copyExternalImageToTexture)
                             WGPUImageCopyTexture_Compat destCopy = {};
                             destCopy.texture = texture;
@@ -1401,9 +1412,9 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
 
                             WGPUExtent3D copySize = {width, height, depthOrArrayLayers};
 
-                            wgpuQueueWriteTexture(g_queue, &destCopy, dataPtr, dataSize, &layout, &copySize);
+                            wgpuQueueWriteTexture(g_queue, &destCopy, uploadDataPtr, dataSize, &layout, &copySize);
 
-                            if (g_verboseLogging) std::cout << "[WebGPU] copyExternalImageToTexture: " << width << "x" << height << std::endl;
+                            if (g_verboseLogging) std::cout << "[WebGPU] copyExternalImageToTexture: " << width << "x" << height << (flipY ? " (flipY)" : "") << std::endl;
 
                             return g_engine->newUndefined();
                         })
@@ -2078,9 +2089,33 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 pipelineDesc.depthStencil = &depthStencilState;
                             }
 
-                            // Multisample state
+                            // Multisample state - parse from descriptor or use defaults
                             pipelineDesc.multisample.count = 1;
                             pipelineDesc.multisample.mask = 0xFFFFFFFF;
+                            pipelineDesc.multisample.alphaToCoverageEnabled = false;
+
+                            auto multisampleProp = g_engine->getProperty(descriptor, "multisample");
+                            if (!g_engine->isUndefined(multisampleProp)) {
+                                auto countProp = g_engine->getProperty(multisampleProp, "count");
+                                if (!g_engine->isUndefined(countProp)) {
+                                    pipelineDesc.multisample.count = (uint32_t)g_engine->toNumber(countProp);
+                                }
+
+                                auto maskProp = g_engine->getProperty(multisampleProp, "mask");
+                                if (!g_engine->isUndefined(maskProp)) {
+                                    pipelineDesc.multisample.mask = (uint32_t)g_engine->toNumber(maskProp);
+                                }
+
+                                auto alphaToCoverageProp = g_engine->getProperty(multisampleProp, "alphaToCoverageEnabled");
+                                if (!g_engine->isUndefined(alphaToCoverageProp)) {
+                                    pipelineDesc.multisample.alphaToCoverageEnabled = g_engine->toBoolean(alphaToCoverageProp);
+                                }
+
+                                if (g_verboseLogging) {
+                                    std::cout << "[WebGPU] Render pipeline multisample: count=" << pipelineDesc.multisample.count
+                                              << ", mask=" << pipelineDesc.multisample.mask << std::endl;
+                                }
+                            }
 
                             // Create pipeline
                             WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(g_device, &pipelineDesc);
@@ -2625,6 +2660,34 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                             uint32_t reference = (uint32_t)g_engine->toNumber(args[0]);
                                             if (g_jsRenderPass) {
                                                 wgpuRenderPassEncoderSetStencilReference(g_jsRenderPass, reference);
+                                            }
+
+                                            return g_engine->newUndefined();
+                                        })
+                                    );
+
+                                    // renderPass.executeBundles(bundles)
+                                    // Used by Three.js for mipmap generation
+                                    WGPURenderPassEncoder capturedRenderPassForBundles = renderPass;
+                                    g_engine->setProperty(jsRenderPass, "executeBundles",
+                                        g_engine->newFunction("executeBundles", [capturedRenderPassForBundles](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                            if (args.empty() || !capturedRenderPassForBundles) return g_engine->newUndefined();
+
+                                            auto bundlesArray = args[0];
+                                            auto lengthProp = g_engine->getProperty(bundlesArray, "length");
+                                            int bundleCount = g_engine->isUndefined(lengthProp) ? 0 : (int)g_engine->toNumber(lengthProp);
+
+                                            std::vector<WGPURenderBundle> bundles;
+                                            bundles.reserve(bundleCount);
+                                            for (int i = 0; i < bundleCount; i++) {
+                                                auto bundleHandle = g_engine->getPropertyIndex(bundlesArray, i);
+                                                WGPURenderBundle bundle = (WGPURenderBundle)g_engine->getPrivateData(bundleHandle);
+                                                if (bundle) bundles.push_back(bundle);
+                                            }
+
+                                            if (!bundles.empty()) {
+                                                wgpuRenderPassEncoderExecuteBundles(capturedRenderPassForBundles, bundles.size(), bundles.data());
+                                                if (g_verboseLogging) std::cout << "[WebGPU] Executed " << bundles.size() << " render bundles" << std::endl;
                                             }
 
                                             return g_engine->newUndefined();
@@ -3754,6 +3817,171 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
 
                             if (g_verboseLogging) std::cout << "[WebGPU] Created texture view" << std::endl;
                             return jsView;
+                        })
+                    );
+
+                    // device.createRenderBundleEncoder(descriptor)
+                    // Used by Three.js for mipmap generation
+                    g_engine->setProperty(device, "createRenderBundleEncoder",
+                        g_engine->newFunction("createRenderBundleEncoder", [](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                            if (args.empty()) {
+                                g_engine->throwException("createRenderBundleEncoder requires a descriptor");
+                                return g_engine->newUndefined();
+                            }
+
+                            auto descriptor = args[0];
+
+                            // Parse color formats
+                            auto colorFormats = g_engine->getProperty(descriptor, "colorFormats");
+                            auto colorFormatsLength = g_engine->getProperty(colorFormats, "length");
+                            int colorFormatCount = g_engine->isUndefined(colorFormatsLength) ? 0 : (int)g_engine->toNumber(colorFormatsLength);
+
+                            std::vector<WGPUTextureFormat> formats;
+                            formats.reserve(colorFormatCount);
+                            for (int i = 0; i < colorFormatCount; i++) {
+                                auto formatProp = g_engine->getPropertyIndex(colorFormats, i);
+                                if (!g_engine->isUndefined(formatProp) && !g_engine->isNull(formatProp)) {
+                                    formats.push_back(stringToFormat(g_engine->toString(formatProp)));
+                                }
+                            }
+
+                            // Parse depth stencil format
+                            WGPUTextureFormat depthFormat = WGPUTextureFormat_Undefined;
+                            auto depthFormatProp = g_engine->getProperty(descriptor, "depthStencilFormat");
+                            if (!g_engine->isUndefined(depthFormatProp) && !g_engine->isNull(depthFormatProp)) {
+                                depthFormat = stringToFormat(g_engine->toString(depthFormatProp));
+                            }
+
+                            // Parse sample count
+                            uint32_t sampleCount = 1;
+                            auto sampleCountProp = g_engine->getProperty(descriptor, "sampleCount");
+                            if (!g_engine->isUndefined(sampleCountProp)) {
+                                sampleCount = (uint32_t)g_engine->toNumber(sampleCountProp);
+                            }
+
+                            WGPURenderBundleEncoderDescriptor desc = {};
+                            desc.colorFormatCount = formats.size();
+                            desc.colorFormats = formats.data();
+                            desc.depthStencilFormat = depthFormat;
+                            desc.sampleCount = sampleCount;
+
+                            WGPURenderBundleEncoder bundleEncoder = wgpuDeviceCreateRenderBundleEncoder(g_device, &desc);
+
+                            if (!bundleEncoder) {
+                                g_engine->throwException("Failed to create render bundle encoder");
+                                return g_engine->newUndefined();
+                            }
+
+                            auto jsEncoder = g_engine->newObject();
+                            g_engine->setPrivateData(jsEncoder, bundleEncoder);
+
+                            // Capture for closures
+                            WGPURenderBundleEncoder capturedEncoder = bundleEncoder;
+
+                            // renderBundleEncoder.setPipeline(pipeline)
+                            g_engine->setProperty(jsEncoder, "setPipeline",
+                                g_engine->newFunction("setPipeline", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.empty()) return g_engine->newUndefined();
+                                    WGPURenderPipeline pipeline = (WGPURenderPipeline)g_engine->getPrivateData(args[0]);
+                                    wgpuRenderBundleEncoderSetPipeline(capturedEncoder, pipeline);
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.setVertexBuffer(slot, buffer, offset?, size?)
+                            g_engine->setProperty(jsEncoder, "setVertexBuffer",
+                                g_engine->newFunction("setVertexBuffer", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.size() < 2) return g_engine->newUndefined();
+                                    uint32_t slot = (uint32_t)g_engine->toNumber(args[0]);
+                                    WGPUBuffer buffer = (WGPUBuffer)g_engine->getPrivateData(args[1]);
+                                    uint64_t offset = args.size() > 2 && !g_engine->isUndefined(args[2]) ? (uint64_t)g_engine->toNumber(args[2]) : 0;
+                                    uint64_t size = args.size() > 3 && !g_engine->isUndefined(args[3]) ? (uint64_t)g_engine->toNumber(args[3]) : WGPU_WHOLE_SIZE;
+                                    wgpuRenderBundleEncoderSetVertexBuffer(capturedEncoder, slot, buffer, offset, size);
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.setIndexBuffer(buffer, format, offset?, size?)
+                            g_engine->setProperty(jsEncoder, "setIndexBuffer",
+                                g_engine->newFunction("setIndexBuffer", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.size() < 2) return g_engine->newUndefined();
+                                    WGPUBuffer buffer = (WGPUBuffer)g_engine->getPrivateData(args[0]);
+                                    std::string formatStr = g_engine->toString(args[1]);
+                                    WGPUIndexFormat format = formatStr == "uint32" ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16;
+                                    uint64_t offset = args.size() > 2 && !g_engine->isUndefined(args[2]) ? (uint64_t)g_engine->toNumber(args[2]) : 0;
+                                    uint64_t size = args.size() > 3 && !g_engine->isUndefined(args[3]) ? (uint64_t)g_engine->toNumber(args[3]) : WGPU_WHOLE_SIZE;
+                                    wgpuRenderBundleEncoderSetIndexBuffer(capturedEncoder, buffer, format, offset, size);
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.setBindGroup(index, bindGroup, dynamicOffsets?)
+                            g_engine->setProperty(jsEncoder, "setBindGroup",
+                                g_engine->newFunction("setBindGroup", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.size() < 2) return g_engine->newUndefined();
+                                    uint32_t index = (uint32_t)g_engine->toNumber(args[0]);
+                                    WGPUBindGroup bindGroup = (WGPUBindGroup)g_engine->getPrivateData(args[1]);
+
+                                    // Parse dynamic offsets if provided
+                                    std::vector<uint32_t> dynamicOffsets;
+                                    if (args.size() > 2 && !g_engine->isUndefined(args[2])) {
+                                        auto offsetsArray = args[2];
+                                        auto lengthProp = g_engine->getProperty(offsetsArray, "length");
+                                        int offsetCount = g_engine->isUndefined(lengthProp) ? 0 : (int)g_engine->toNumber(lengthProp);
+                                        for (int i = 0; i < offsetCount; i++) {
+                                            dynamicOffsets.push_back((uint32_t)g_engine->toNumber(g_engine->getPropertyIndex(offsetsArray, i)));
+                                        }
+                                    }
+
+                                    wgpuRenderBundleEncoderSetBindGroup(capturedEncoder, index, bindGroup, dynamicOffsets.size(), dynamicOffsets.data());
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.draw(vertexCount, instanceCount?, firstVertex?, firstInstance?)
+                            g_engine->setProperty(jsEncoder, "draw",
+                                g_engine->newFunction("draw", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.empty()) return g_engine->newUndefined();
+                                    uint32_t vertexCount = (uint32_t)g_engine->toNumber(args[0]);
+                                    uint32_t instanceCount = args.size() > 1 ? (uint32_t)g_engine->toNumber(args[1]) : 1;
+                                    uint32_t firstVertex = args.size() > 2 ? (uint32_t)g_engine->toNumber(args[2]) : 0;
+                                    uint32_t firstInstance = args.size() > 3 ? (uint32_t)g_engine->toNumber(args[3]) : 0;
+                                    wgpuRenderBundleEncoderDraw(capturedEncoder, vertexCount, instanceCount, firstVertex, firstInstance);
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.drawIndexed(indexCount, instanceCount?, firstIndex?, baseVertex?, firstInstance?)
+                            g_engine->setProperty(jsEncoder, "drawIndexed",
+                                g_engine->newFunction("drawIndexed", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    if (args.empty()) return g_engine->newUndefined();
+                                    uint32_t indexCount = (uint32_t)g_engine->toNumber(args[0]);
+                                    uint32_t instanceCount = args.size() > 1 ? (uint32_t)g_engine->toNumber(args[1]) : 1;
+                                    uint32_t firstIndex = args.size() > 2 ? (uint32_t)g_engine->toNumber(args[2]) : 0;
+                                    int32_t baseVertex = args.size() > 3 ? (int32_t)g_engine->toNumber(args[3]) : 0;
+                                    uint32_t firstInstance = args.size() > 4 ? (uint32_t)g_engine->toNumber(args[4]) : 0;
+                                    wgpuRenderBundleEncoderDrawIndexed(capturedEncoder, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+                                    return g_engine->newUndefined();
+                                })
+                            );
+
+                            // renderBundleEncoder.finish(descriptor?)
+                            g_engine->setProperty(jsEncoder, "finish",
+                                g_engine->newFunction("finish", [capturedEncoder](void* ctx, const std::vector<js::JSValueHandle>& args) {
+                                    WGPURenderBundleDescriptor desc = {};
+                                    WGPURenderBundle bundle = wgpuRenderBundleEncoderFinish(capturedEncoder, &desc);
+
+                                    auto jsBundle = g_engine->newObject();
+                                    g_engine->setPrivateData(jsBundle, bundle);
+                                    g_engine->setProperty(jsBundle, "_type", g_engine->newString("renderBundle"));
+
+                                    if (g_verboseLogging) std::cout << "[WebGPU] Render bundle finished" << std::endl;
+                                    return jsBundle;
+                                })
+                            );
+
+                            if (g_verboseLogging) std::cout << "[WebGPU] Created render bundle encoder" << std::endl;
+                            return jsEncoder;
                         })
                     );
 

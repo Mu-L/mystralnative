@@ -33,8 +33,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # WebGPU Implementation (choose one)
-option(MYSTRAL_USE_DAWN "Use Dawn WebGPU implementation" OFF)
-option(MYSTRAL_USE_WGPU "Use wgpu-native WebGPU implementation" ON)  # Default - has iOS support
+option(MYSTRAL_USE_DAWN "Use Dawn WebGPU implementation" ON)  # Default - best compatibility
+option(MYSTRAL_USE_WGPU "Use wgpu-native WebGPU implementation" OFF)  # Alternative - has iOS support
 
 # ============================================================================
 # Platform Detection
