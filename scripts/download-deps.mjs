@@ -195,31 +195,27 @@ const DEPS = {
   },
   skia: {
     // Skia 2D graphics library for Canvas 2D implementation
-    // https://github.com/mystralengine/library-builder/releases - Patched Skia builds with Dawn
+    // https://github.com/olilarkin/skia-builder/releases - Modern Skia builds (chrome/m145)
     //
-    // This build includes:
-    // - libSkia.a - Core 2D graphics
-    // - libdawn_combined.a - WebGPU/Dawn (patched for macOS 12+ compatibility)
-    // - All other Skia libraries (skshaper, skparagraph, svg, etc.)
+    // Previously used Aseprite's builds (m124) but they were ~8k commits behind.
+    // olilarkin/skia-builder provides up-to-date builds for all platforms including iOS.
     //
     // Directory structure after extraction:
     //   skia/build/include/include/core/SkPath.h etc.
     //   skia/build/{platform}-gpu/lib/Release/libskia.a
-    //   skia/build/{platform}-gpu/lib/Release/libdawn_combined.a
     //
-    // Note: Includes Dawn with Metal availability patch for Intel Mac compatibility.
+    // Note: m145 uses SkPathBuilder instead of direct SkPath mutation.
     //
-    version: 'main-20260129',
+    version: 'chrome/m145',
     getUrl: () => {
-      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/main-20260129';
+      const baseUrl = 'https://github.com/olilarkin/skia-builder/releases/download/chrome%2Fm145';
       if (platformName === 'macos') {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/skia-build-mac-${arch}-gpu-release.zip`;
       } else if (platformName === 'linux') {
         return `${baseUrl}/skia-build-linux-x64-gpu-release.zip`;
       } else if (platformName === 'windows') {
-        // Use static CRT build to match other dependencies
-        return `${baseUrl}/skia-build-win-x64-static-gpu-release.zip`;
+        return `${baseUrl}/skia-build-win-x64-gpu-release.zip`;
       }
       console.warn(`Skia prebuilts not available for ${platformName}-${archName}`);
       return null;
@@ -308,42 +304,42 @@ const DEPS = {
     extractTo: 'draco',
   },
   'skia-win-static': {
-    // DEPRECATED: Use 'skia' instead - it now points to library-builder with static CRT
-    // This entry is kept for backwards compatibility
-    //
     // Static Skia + Dawn for Windows from mystralengine/library-builder
     // This build uses /MT (static CRT) and includes dawn_combined.lib with
     // full D3D11/D3D12 WebGPU implementation (not just proc stubs)
+    // Use this for Windows Dawn builds to avoid CRT mismatch with Skia
     // https://github.com/mystralengine/library-builder/releases
-    version: 'main-20260129',
+    version: 'skia-win-dawn-v1',
     getUrl: () => {
       if (platformName !== 'windows') {
         console.warn('skia-win-static is only for Windows');
         return null;
       }
       // Download from library-builder - includes Skia + Dawn with D3D11/D3D12 backends
-      return 'https://github.com/mystralengine/library-builder/releases/download/main-20260129/skia-build-win-x64-static-gpu-release.zip';
+      return 'https://github.com/mystralengine/library-builder/releases/download/skia-win-dawn-v1/skia-build-win-x64-static-gpu-release.zip';
     },
     extractTo: 'skia',  // Extract to same place as regular skia
   },
   'skia-ios': {
-    // Skia for iOS from mystralengine/library-builder
-    // https://github.com/mystralengine/library-builder/releases
+    // Skia for iOS from olilarkin/skia-builder
+    // https://github.com/olilarkin/skia-builder/releases
     //
-    // Patched Skia builds with Dawn for iOS:
+    // This is a more up-to-date Skia build (chrome/m145) that includes:
     // - iOS device (arm64)
     // - iOS simulator (arm64 + x86_64 universal)
     // - Dawn support via Metal backend
     //
-    version: 'main-20260129',
+    // Use this for iOS builds until mystralengine/library-builder is ready.
+    //
+    version: 'chrome/m145',
     getUrl: () => {
       // Multi-file download - handled separately
       return null;
     },
     extractTo: 'skia-ios',
     archives: {
-      device: `https://github.com/mystralengine/library-builder/releases/download/main-20260129/skia-build-ios-device-arm64-gpu-release.zip`,
-      simulator: `https://github.com/mystralengine/library-builder/releases/download/main-20260129/skia-build-ios-simulator-arm64-x86_64-gpu-release.zip`,
+      device: `https://github.com/olilarkin/skia-builder/releases/download/chrome%2Fm145/skia-build-ios-device-arm64-gpu-release.zip`,
+      simulator: `https://github.com/olilarkin/skia-builder/releases/download/chrome%2Fm145/skia-build-ios-simulator-arm64-x86_64-gpu-release.zip`,
     },
   },
   // ============================================================================
