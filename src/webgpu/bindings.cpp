@@ -129,6 +129,8 @@ static bool g_surfaceRenderPassEnded = false;
 static WGPUCommandEncoder g_surfaceRenderEncoder = nullptr;
 static bool g_screenshotPending = false;
 static bool g_screenshotReady = false;
+// Prevent capturing multiple screenshots per frame (Three.js does multiple queue.submit() per frame)
+static bool g_screenshotCapturedThisFrame = false;
 static std::vector<uint8_t> g_screenshotData;
 
 // Texture registry for tracking user-created textures
@@ -1002,15 +1004,12 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 std::cout << "[WebGPU] Submit #" << submitCount << ": EMPTY (length=" << length << "), g_currentTexture=" << (void*)g_currentTexture << std::endl;
                             }
 
-                            // Copy texture to screenshot buffer before presenting
-                            // This must happen BEFORE present, while texture is still valid
-                            // Use g_currentViewSourceTexture (the texture the render view was created from)
-                            // to ensure we capture from the same texture that was rendered to
+                            // Copy texture to screenshot buffer ONLY when about to present
+                            // This prevents capturing intermediate render passes (e.g., Three.js post-processing)
+                            // Only capture when the surface render pass has ended, matching the present condition
+                            // Also ensure we only capture once per frame (Three.js does multiple queue.submit() per frame)
                             WGPUTexture screenshotTexture = g_currentViewSourceTexture ? g_currentViewSourceTexture : g_currentTexture;
-                            std::cout << "[WebGPU] Screenshot copy check: viewSourceTex=" << (void*)g_currentViewSourceTexture
-                                      << ", currentTex=" << (void*)g_currentTexture
-                                      << ", using=" << (void*)screenshotTexture << std::endl;
-                            if (screenshotTexture && g_device && g_queue) {
+                            if (g_surfaceRenderPassEnded && !g_screenshotCapturedThisFrame && screenshotTexture && g_device && g_queue) {
                                 // Calculate buffer requirements
                                 uint32_t bytesPerPixel = 4;  // BGRA8
                                 uint32_t unalignedBytesPerRow = g_canvasWidth * bytesPerPixel;
@@ -1077,10 +1076,7 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 }
 
                                 g_screenshotReady = true;
-                                std::cout << "[WebGPU] Screenshot copy submitted for texture " << (void*)screenshotTexture << " (" << g_canvasWidth << "x" << g_canvasHeight << ")" << std::endl;
-                            } else {
-                                std::cout << "[WebGPU] Screenshot copy SKIPPED: viewSourceTex=" << (void*)g_currentViewSourceTexture
-                                          << ", currentTex=" << (void*)g_currentTexture << ", device=" << (void*)g_device << std::endl;
+                                g_screenshotCapturedThisFrame = true;
                             }
 
                             // Present the surface only if:
@@ -1094,6 +1090,7 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 // Reset surface render tracking for next frame
                                 g_surfaceRenderEncoder = nullptr;
                                 g_surfaceRenderPassEnded = false;
+                                g_screenshotCapturedThisFrame = false;
 
                                 // Release the texture view if we created one
                                 if (g_currentTextureView) {

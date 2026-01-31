@@ -311,7 +311,7 @@ RUN OPTIONS:
     --quiet, -q           Suppress all output except errors
 
 VIDEO RECORDING OPTIONS:
-    --video <file>        Record video to file (WebP format, or MP4 with --mp4)
+    --video, --record <file>  Record video to file (WebP format, or MP4 with --mp4)
     --start-frame <n>     First frame to capture (default: 0)
     --end-frame <n>       Last frame to capture (required for video recording)
     --video-fps <n>       Video framerate (default: 60)
@@ -460,7 +460,7 @@ CLIOptions parseArgs(int argc, char* argv[]) {
             opts.watch = true;
         } else if (arg == "--bundle-only") {
             opts.bundleOnly = true;
-        } else if (arg == "--video" && i + 1 < argc) {
+        } else if ((arg == "--video" || arg == "--record") && i + 1 < argc) {
             opts.videoPath = argv[++i];
             // Auto-detect --mp4 from extension
             if (opts.videoPath.size() > 4) {
@@ -489,6 +489,9 @@ CLIOptions parseArgs(int argc, char* argv[]) {
             opts.scriptPath = arg;
         } else if (opts.command == "compile" && opts.scriptPath.empty() && (arg.empty() || arg[0] != '-')) {
             opts.scriptPath = arg;
+        } else if (arg[0] == '-') {
+            // Unknown flag - warn the user
+            std::cerr << "Warning: Unknown option '" << arg << "'" << std::endl;
         }
     }
 
