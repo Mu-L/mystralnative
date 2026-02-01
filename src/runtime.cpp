@@ -12,6 +12,11 @@
 #include "mystral/audio/audio_bindings.h"
 #include "mystral/vfs/embedded_bundle.h"
 #include "mystral/async/event_loop.h"
+
+// Ray tracing bindings (conditional)
+#ifdef MYSTRAL_HAS_RAYTRACING
+#include "raytracing/bindings.h"
+#endif
 #include <map>
 #include <iostream>
 
@@ -432,6 +437,9 @@ public:
             );
         }
 
+        // Set up ray tracing bindings (if compiled with MYSTRAL_HAS_RAYTRACING)
+        setupRayTracing();
+
         // Install crash handlers AFTER full initialization
         // (Metal/WebGPU use signals during setup that we shouldn't intercept)
         installCrashHandlers();
@@ -459,6 +467,11 @@ public:
         // Clean up audio resources FIRST before touching JS objects
         // (Audio callback thread may be accessing JS handles)
         audio::cleanupAudioBindings();
+
+        // Clean up ray tracing resources
+#ifdef MYSTRAL_HAS_RAYTRACING
+        rt::cleanupRTBindings();
+#endif
 
         // Shutdown async HTTP client (cancels pending requests)
         http::getAsyncHttpClient().shutdown();
@@ -2488,6 +2501,16 @@ globalThis.__mystralNativeDecodeDracoAsync = function(buffer, attrs) {
         jsEngine_->eval(dracoPolyfill, "draco-polyfill.js");
 
         std::cout << "[Mystral] Native Draco decoder initialized (async, libuv thread pool)" << std::endl;
+#endif
+    }
+
+    void setupRayTracing() {
+#ifdef MYSTRAL_HAS_RAYTRACING
+        if (!jsEngine_) return;
+
+        if (!rt::initializeRTBindings(jsEngine_.get())) {
+            std::cerr << "[Mystral] Failed to initialize ray tracing bindings" << std::endl;
+        }
 #endif
     }
 

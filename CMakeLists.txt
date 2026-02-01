@@ -36,6 +36,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MYSTRAL_USE_DAWN "Use Dawn WebGPU implementation" ON)  # Default - best compatibility
 option(MYSTRAL_USE_WGPU "Use wgpu-native WebGPU implementation" OFF)  # Alternative - has iOS support
 
+# Ray Tracing (optional - hardware RT via DXR/Vulkan/Metal)
+option(MYSTRAL_USE_RAYTRACING "Enable hardware ray tracing support" OFF)
+
 # ============================================================================
 # Platform Detection
 # ============================================================================
@@ -826,6 +829,15 @@ else()
     endif()
 endif()
 
+# Ray Tracing (optional - hardware RT via DXR/Vulkan/Metal)
+# For now, this only adds the C++ infrastructure and JS bindings.
+# Actual backend implementations (DXR, Vulkan RT, Metal RT) will be added in Wave 3-4.
+if(MYSTRAL_USE_RAYTRACING)
+    add_compile_definitions(MYSTRAL_HAS_RAYTRACING)
+    message(STATUS "Ray tracing support enabled")
+    # TODO: In Wave 3, add glslang and SPIRV-Cross dependencies here for shader compilation
+endif()
+
 # ============================================================================
 # Main Library
 # ============================================================================
@@ -858,6 +870,14 @@ set(MYSTRAL_SOURCES
     src/async/event_loop.cpp
     src/debug/debug_server.cpp
 )
+
+# Ray tracing sources (conditional)
+if(MYSTRAL_USE_RAYTRACING)
+    list(APPEND MYSTRAL_SOURCES
+        src/raytracing/rt_common.cpp
+        src/raytracing/bindings.cpp
+    )
+endif()
 
 if(ANDROID)
     add_library(mystral-runtime SHARED ${MYSTRAL_SOURCES})
