@@ -1012,13 +1012,17 @@ elseif(WIN32)
         src/video/windows_graphics_capture.cpp
         src/video/windows_graphics_capture_impl.cpp
     )
-    # NOTE: Windows.Graphics.Capture is currently stubbed out due to C++/WinRT
-    # namespace conflicts with Windows.h and D3D11 interop headers.
-    # GPU readback fallback is used on Windows (Dawn builds only).
-    # TODO: Implement using one of these approaches:
-    #   1. Separate DLL that fully isolates C++/WinRT
-    #   2. COM directly without C++/WinRT projections
-    #   3. DXGI Desktop Duplication API (older but simpler)
+    # Windows.Graphics.Capture uses C++/WinRT with namespace aliases to avoid
+    # conflicts with Windows SDK interop headers, plus Media Foundation for H.264
+    target_link_libraries(mystral-runtime PRIVATE
+        d3d11.lib
+        dxgi.lib
+        mfplat.lib
+        mfuuid.lib
+        mfreadwrite.lib
+    )
+    # C++/WinRT needs /await for coroutine support
+    target_compile_options(mystral-runtime PRIVATE /await)
 elseif(ANDROID)
     target_sources(mystral-runtime PRIVATE
         src/platform/surface_android.cpp
