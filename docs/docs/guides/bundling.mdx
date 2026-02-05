@@ -419,19 +419,24 @@ mystral compile src/game.js --include assets --out dist/my-game
 
 ### macOS .app Bundle
 
-For macOS distribution, use `--bundle-only` and the packaging script:
+For macOS distribution, use `--bundle-only` to create a standalone `.bundle` file, then use the `package-app.sh` script from the [MystralNative source repository](https://github.com/mystralengine/mystralnative) to wrap it in a `.app`:
 
 ```bash
 # Create the bundle file
 mystral compile dist/game.js --include assets --bundle-only --out dist/game.bundle
 
+# Clone mystralnative (if you haven't already) for the packaging script
+git clone https://github.com/mystralengine/mystralnative.git
+
 # Package as .app
-./scripts/package-app.sh \
+mystralnative/scripts/package-app.sh \
     --binary $(which mystral) \
     --name "My Game" \
     --bundle dist/game.bundle \
     --output dist
 ```
+
+> **Note:** `package-app.sh` is a helper script in the MystralNative source tree, not part of the `mystral` CLI itself. A built-in `mystral package` command may be added in the future.
 
 ## Development Workflow
 
@@ -460,18 +465,6 @@ mystral run dist/game.js --watch
 ```
 
 When you edit any source file, Vite rebuilds the bundle, and MystralNative detects the change and reloads automatically.
-
-## Comparison of Bundlers
-
-| Feature | Vite | esbuild | Bun |
-|---------|------|---------|-----|
-| Speed | Fast | Fastest | Fast |
-| TypeScript | Built-in | Built-in | Built-in |
-| npm packages | Yes | Yes | Yes |
-| Config needed | `vite.config.ts` | CLI flags | CLI flags |
-| Plugins | Rich ecosystem | Limited | Limited |
-| Tree shaking | Yes | Yes | Yes |
-| Best for | Complex projects | Simple projects | Bun users |
 
 ## Next Steps
 
