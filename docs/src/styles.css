@@ -472,7 +472,73 @@ a:hover {
   color: var(--color-text);
 }
 
+/* Table of Contents (Right Sidebar) */
+.toc {
+  width: 220px;
+  min-width: 220px;
+  padding: 24px 16px;
+  position: sticky;
+  top: var(--navbar-height);
+  height: calc(100vh - var(--navbar-height));
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border);
+}
+
+.toc-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+  padding-left: 8px;
+}
+
+.toc-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.toc-link {
+  display: block;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.toc-link:hover {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.toc-link.active {
+  color: var(--color-primary);
+  border-left-color: var(--color-primary);
+}
+
+.toc-level-1 {
+  font-weight: 600;
+}
+
+.toc-level-2 {
+  padding-left: 12px;
+}
+
+.toc-level-3 {
+  padding-left: 20px;
+  font-size: 0.75rem;
+}
+
 /* Responsive */
+@media (max-width: 1200px) {
+  .toc {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     display: none;

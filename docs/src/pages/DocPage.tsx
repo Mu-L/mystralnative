@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { TableOfContents } from '../components/TableOfContents';
 
 // Import all markdown files at build time
 const mdxModules = import.meta.glob('../../docs/**/*.{md,mdx}');
@@ -200,6 +201,8 @@ export default function DocPage() {
             <div>Loading...</div>
           )}
         </main>
+
+        <TableOfContents key={slug} />
       </div>
     </>
   );
