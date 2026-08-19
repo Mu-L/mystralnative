@@ -321,6 +321,10 @@ Compile Options:
 > nor [kuoruan/libv8](https://github.com/kuoruan/libv8/releases) publishes an
 > aarch64 Linux prebuilt. It needs a Vulkan 1.1+ driver — on a Raspberry Pi
 > that means Mesa's `v3dv`, which is Pi 5 class hardware.
+>
+> Because there is no Dawn build for this platform, the examples marked
+> "Dawn builds only" below (`mystral-helmet.js`, `sponza.js`) do not run on
+> Linux ARM64. Plain WebGPU, Canvas, audio and TypeScript examples do.
 
 ## Build Options
 
