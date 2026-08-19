@@ -333,35 +333,42 @@ public:
             return false;
         }
 #elif defined(__linux__)
-        // Linux: Use X11 from SDL (Wayland support would need additional work)
         SDL_Window* sdlWindow = platform::getSDLWindow();
         if (!sdlWindow) {
             std::cerr << "[Mystral] Failed to get SDL window" << std::endl;
             return false;
         }
 
-        // Try X11 first
-        void* xdisplay = SDL_GetPointerProperty(SDL_GetWindowProperties(sdlWindow),
-            SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
-        if (xdisplay) {
-            auto xwindow = static_cast<unsigned long>(SDL_GetNumberProperty(SDL_GetWindowProperties(sdlWindow),
-                SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
-            if (xwindow) {
-                std::cout << "[Mystral] Using X11 display: " << xdisplay << " window: " << xwindow << std::endl;
-                // Pass both display and window pointer for proper X11 surface creation
-                // Dawn requires the display pointer, wgpu-native can work with just window
-                if (!webgpu_->createSurfaceWithDisplay(xdisplay, reinterpret_cast<void*>(xwindow), webgpu::Context::PLATFORM_XLIB)) {
-                    std::cerr << "[Mystral] Failed to create WebGPU surface" << std::endl;
-                    return false;
-                }
-            } else {
-                std::cerr << "[Mystral] Failed to get X11 window" << std::endl;
+        SDL_PropertiesID windowProps = SDL_GetWindowProperties(sdlWindow);
+
+        // Try Wayland first
+        void* wlDisplay = SDL_GetPointerProperty(windowProps, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+        if (wlDisplay) {
+            void* wlSurface = SDL_GetPointerProperty(windowProps, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
+            std::cout << "[Mystral] Using Wayland display: " << wlDisplay << " surface: " << wlSurface << std::endl;
+            if (!webgpu_->createSurfaceWithWLDisplay(wlDisplay, wlSurface)) {
+                std::cerr << "[Mystral] Failed to create WebGPU surface" << std::endl;
                 return false;
             }
         } else {
-            std::cerr << "[Mystral] X11 display not available. Wayland not yet supported." << std::endl;
-            return false;
+            void* xdisplay = SDL_GetPointerProperty(windowProps, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+            if (!xdisplay) {
+                std::cerr << "[Mystral] Wayland or X11 display not available." << std::endl;
+                return false;
+            }
+            auto xwindow = static_cast<unsigned long>(SDL_GetNumberProperty(windowProps,
+                SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
+            if (!xwindow) {
+                std::cerr << "[Mystral] Failed to get X11 window" << std::endl;
+                return false;
+            }
+            std::cout << "[Mystral] Using X11 display: " << xdisplay << " window: " << xwindow << std::endl;
+            if (!webgpu_->createSurfaceWithX11Display(xdisplay, xwindow)) {
+                std::cerr << "[Mystral] Failed to create WebGPU surface" << std::endl;
+                return false;
+            }
         }
+
 #else
         std::cerr << "[Mystral] WebGPU surface creation not implemented for this platform" << std::endl;
         return false;

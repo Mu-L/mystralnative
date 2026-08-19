@@ -9,6 +9,7 @@ typedef struct WGPUSurfaceImpl* WGPUSurface;
 typedef struct WGPUAdapterImpl* WGPUAdapter;
 typedef struct WGPUDeviceImpl* WGPUDevice;
 typedef struct WGPUQueueImpl* WGPUQueue;
+struct WGPUSurfaceDescriptor;
 
 namespace mystral {
 namespace webgpu {
@@ -72,13 +73,20 @@ public:
     bool createSurface(void* nativeHandle, int platformType);
 
     /**
-     * Create a surface from a native window handle with display pointer (for X11/Wayland)
-     * @param display X11 Display* or Wayland display
-     * @param window X11 Window or Wayland surface
-     * @param platformType PLATFORM_XLIB or PLATFORM_WAYLAND
+     * Create a surface from an X11 display and window
+     * @param display X11 Display*
+     * @param window X11 Window ID
      * @return true on success
      */
-    bool createSurfaceWithDisplay(void* display, void* window, int platformType);
+    bool createSurfaceWithX11Display(void* display, unsigned long window);
+
+    /**
+     * Create a surface from a Wayland display and surface
+     * @param display wl_display*
+     * @param surface wl_surface*
+     * @return true on success
+     */
+    bool createSurfaceWithWLDisplay(void* display, void* surface);
 
     /**
      * Configure the surface for rendering
@@ -152,6 +160,8 @@ public:
     };
 
 private:
+    bool createSurfaceWithDescriptor(WGPUSurfaceDescriptor& surfaceDesc);
+
     WGPUInstance instance_ = nullptr;
     WGPUSurface surface_ = nullptr;
     WGPUAdapter adapter_ = nullptr;

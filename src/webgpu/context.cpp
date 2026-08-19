@@ -719,37 +719,57 @@ bool Context::createSurface(void* nativeHandle, int platformType) {
     return true;
 }
 
-bool Context::createSurfaceWithDisplay(void* display, void* window, int platformType) {
+bool Context::createSurfaceWithX11Display(void* display, unsigned long window) {
     if (!instance_) {
         std::cerr << "[WebGPU] Cannot create surface: no instance" << std::endl;
         return false;
     }
 
-    std::cout << "[WebGPU] Creating surface for platform type " << platformType << " with display pointer" << std::endl;
-
     WGPUSurfaceDescriptor surfaceDesc = {};
 
 #if defined(__linux__) && !defined(__ANDROID__)
     WGPUSurfaceDescriptorFromXlibWindow_Compat xlibDesc = {};
-
-    if (platformType == PLATFORM_XLIB) {
-        xlibDesc.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow_Compat;
-        xlibDesc.display = display;  // Pass the actual X11 Display pointer
-        xlibDesc.window = reinterpret_cast<uint64_t>(window);
-        surfaceDesc.nextInChain = (WGPUChainedStruct*)&xlibDesc;
-        std::cout << "[WebGPU] Creating X11 surface with display: " << display << " window: " << window << std::endl;
-    } else {
-        std::cerr << "[WebGPU] createSurfaceWithDisplay only supports PLATFORM_XLIB on Linux" << std::endl;
-        return false;
-    }
+    xlibDesc.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow_Compat;
+    xlibDesc.display = display;
+    xlibDesc.window = static_cast<uint64_t>(window);
+    surfaceDesc.nextInChain = (WGPUChainedStruct*)&xlibDesc;
+    std::cout << "[WebGPU] Creating X11 surface with display: " << display << " window: " << window << std::endl;
 #else
     (void)display;
     (void)window;
-    (void)platformType;
-    std::cerr << "[WebGPU] createSurfaceWithDisplay is only available on Linux" << std::endl;
+    std::cerr << "[WebGPU] X11 surface creation is only available on Linux" << std::endl;
     return false;
 #endif
 
+    return createSurfaceWithDescriptor(surfaceDesc);
+}
+
+bool Context::createSurfaceWithWLDisplay(void* display, void* surface) {
+    if (!instance_) {
+        std::cerr << "[WebGPU] Cannot create surface: no instance" << std::endl;
+        return false;
+    }
+
+    WGPUSurfaceDescriptor surfaceDesc = {};
+
+#if defined(__linux__) && !defined(__ANDROID__)
+    WGPUSurfaceDescriptorFromWaylandSurface_Compat waylandDesc = {};
+    waylandDesc.chain.sType = WGPUSType_SurfaceDescriptorFromWaylandSurface_Compat;
+    waylandDesc.display = display;
+    waylandDesc.surface = surface;
+    surfaceDesc.nextInChain = (WGPUChainedStruct*)&waylandDesc;
+    std::cout << "[WebGPU] Creating Wayland surface with display: " << display << " surface: " << surface << std::endl;
+#else
+    (void)display;
+    (void)surface;
+    std::cerr << "[WebGPU] Wayland surface creation is only available on Linux" << std::endl;
+    return false;
+#endif
+
+    return createSurfaceWithDescriptor(surfaceDesc);
+}
+
+bool Context::createSurfaceWithDescriptor(WGPUSurfaceDescriptor& surfaceDesc) {
     surface_ = wgpuInstanceCreateSurface(instance_, &surfaceDesc);
     if (!surface_) {
         std::cerr << "[WebGPU] Failed to create surface" << std::endl;
