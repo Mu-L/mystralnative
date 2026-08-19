@@ -62,7 +62,8 @@ Download the latest release for your platform from the [releases page](https://g
 | macOS (Apple Silicon) | `mystral-macOS-arm64-v8-dawn.zip` |
 | macOS (Intel) | `mystral-macOS-x64-v8-dawn.zip` |
 | Windows | `mystral-windows-x64-v8-dawn.zip` |
-| Linux | `mystral-linux-x64-v8-dawn.zip` |
+| Linux (x64) | `mystral-linux-x64-v8-dawn.zip` |
+| Linux (ARM64) | `mystral-linux-arm64-quickjs-wgpu.zip` |
 
 ```bash
 unzip mystral-macOS-arm64-v8-dawn.zip
@@ -310,9 +311,16 @@ Compile Options:
 | macOS (arm64) | V8, JSC, QuickJS | Dawn, wgpu-native |
 | macOS (x64) | V8, JSC, QuickJS | Dawn, wgpu-native |
 | Windows | V8, QuickJS | Dawn, wgpu-native |
-| Linux | V8, QuickJS | Dawn, wgpu-native |
+| Linux (x64) | V8, QuickJS | Dawn, wgpu-native |
+| Linux (ARM64) | QuickJS | wgpu-native |
 | iOS | JSC, QuickJS | wgpu-native |
 | Android | V8, QuickJS | wgpu-native |
+
+> **Linux ARM64** (Raspberry Pi 5, Ampere, Graviton, Nvidia/Qualcomm arm64)
+> is QuickJS + wgpu-native only: neither [google/dawn](https://github.com/google/dawn/releases)
+> nor [kuoruan/libv8](https://github.com/kuoruan/libv8/releases) publishes an
+> aarch64 Linux prebuilt. It needs a Vulkan 1.1+ driver — on a Raspberry Pi
+> that means Mesa's `v3dv`, which is Pi 5 class hardware.
 
 ## Build Options
 
