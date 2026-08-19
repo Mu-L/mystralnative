@@ -11,6 +11,15 @@
 #include <iostream>
 #include <cstring>
 
+// wgpu-native specific extension functions (not in standard webgpu.h).
+// Declared here to avoid include path issues, matching src/webgpu/bindings.cpp.
+#if defined(MYSTRAL_WEBGPU_WGPU)
+extern "C" {
+typedef struct WGPUWrappedSubmissionIndex WGPUWrappedSubmissionIndex;
+WGPUBool wgpuDevicePoll(WGPUDevice device, WGPUBool wait, WGPUWrappedSubmissionIndex const* wrappedSubmissionIndex);
+}
+#endif
+
 namespace mystral {
 namespace video {
 
@@ -289,10 +298,13 @@ bool AsyncCapture::submitCaptureSync(WGPUTexture sourceTexture, uint32_t width, 
     while (!buffer->mapComplete.load(std::memory_order_acquire) && maxIterations > 0) {
 #if defined(MYSTRAL_WEBGPU_DAWN)
         wgpuDeviceTick(device_);
-#endif
         if (instance_) {
             wgpuInstanceProcessEvents(instance_);
         }
+#elif defined(MYSTRAL_WEBGPU_WGPU)
+        // wgpuInstanceProcessEvents is an unimplemented!() stub in wgpu-native.
+        wgpuDevicePoll(device_, false, nullptr);
+#endif
         maxIterations--;
     }
 
@@ -488,11 +500,14 @@ void AsyncCapture::processAsync() {
     }
 
     // Process events to trigger callbacks
+#if defined(MYSTRAL_WEBGPU_DAWN)
     if (instance_) {
         wgpuInstanceProcessEvents(instance_);
     }
-#if defined(MYSTRAL_WEBGPU_DAWN)
     wgpuDeviceTick(device_);
+#elif defined(MYSTRAL_WEBGPU_WGPU)
+    // wgpuInstanceProcessEvents is an unimplemented!() stub in wgpu-native.
+    wgpuDevicePoll(device_, false, nullptr);
 #endif
 
     // Check all buffers for completed maps

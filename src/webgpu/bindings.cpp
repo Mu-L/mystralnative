@@ -1079,12 +1079,15 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                 for (int syncIter = 0; syncIter < 100; syncIter++) {
 #if defined(MYSTRAL_WEBGPU_DAWN)
                                     wgpuDeviceTick(g_device);
-#elif defined(MYSTRAL_WEBGPU_WGPU)
-                                    wgpuDevicePoll(g_device, false, nullptr);
-#endif
                                     if (g_instance) {
                                         wgpuInstanceProcessEvents(g_instance);
                                     }
+#elif defined(MYSTRAL_WEBGPU_WGPU)
+                                    // wgpu-native has no wgpuInstanceProcessEvents (it is an
+                                    // unimplemented!() stub that aborts the process);
+                                    // wgpuDevicePoll is its equivalent.
+                                    wgpuDevicePoll(g_device, false, nullptr);
+#endif
                                 }
 
                                 g_screenshotReady = true;

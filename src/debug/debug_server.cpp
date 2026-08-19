@@ -5,6 +5,9 @@
  */
 
 #include "mystral/debug/debug_server.h"
+
+#ifdef MYSTRAL_HAS_LIBUV
+
 #include "mystral/async/event_loop.h"
 #include <uv.h>
 #include <iostream>
@@ -737,3 +740,44 @@ int DebugServer::getPort() const { return impl_->getPort(); }
 
 }  // namespace debug
 }  // namespace mystral
+
+#else  // !MYSTRAL_HAS_LIBUV
+
+// libuv is an optional dependency (no prebuilt exists for every platform/arch).
+// Without it there is no event loop to run a WebSocket server on, so compile a
+// stub that reports "not running" -- same approach the WebTransport bindings
+// take when quiche is absent. `mystral --debug-port` then degrades to a clear
+// runtime message instead of failing the whole build.
+
+#include <iostream>
+
+namespace mystral {
+namespace debug {
+
+class DebugServerImpl {
+public:
+    explicit DebugServerImpl(int port) : port_(port) {}
+    int port_;
+};
+
+DebugServer::DebugServer(int port) : impl_(std::make_unique<DebugServerImpl>(port)) {}
+DebugServer::~DebugServer() = default;
+
+bool DebugServer::start() {
+    std::cerr << "[DebugServer] Unavailable: this build was compiled without libuv." << std::endl;
+    return false;
+}
+void DebugServer::stop() {}
+bool DebugServer::isRunning() const { return false; }
+void DebugServer::poll() {}
+void DebugServer::setCommandHandler(CommandHandler) {}
+void DebugServer::broadcastEvent(const std::string&, const std::string&) {}
+void DebugServer::sendResponse(int, const std::string&) {}
+void DebugServer::sendError(int, const std::string&) {}
+int DebugServer::getClientCount() const { return 0; }
+int DebugServer::getPort() const { return impl_->port_; }
+
+}  // namespace debug
+}  // namespace mystral
+
+#endif  // MYSTRAL_HAS_LIBUV
