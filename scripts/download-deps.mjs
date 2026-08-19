@@ -314,8 +314,16 @@ const DEPS = {
   },
   swc: {
     version: 'swc-11',
+    // linux-arm64 uses swc-41, the first build that produced an aarch64 asset.
+    // Other platforms stay pinned to swc-11: the SWC tag carries no upstream
+    // version, so swc-41 cannot be assumed equivalent, and bumping the
+    // transpiler for x64/mac/win is not part of adding an architecture.
+    arm64LinuxVersion: 'swc-41',
     getUrl: () => {
-      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/swc-11';
+      const swcTag = (platformName === 'linux' && ARCH === 'arm64')
+        ? DEPS.swc.arm64LinuxVersion
+        : DEPS.swc.version;
+      const baseUrl = `https://github.com/mystralengine/library-builder/releases/download/${swcTag}`;
       if (platformName === 'macos') {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/swc-mac-${arch}.zip`;
@@ -337,9 +345,9 @@ const DEPS = {
     // libuv - async I/O library (used by Node.js)
     // For non-blocking HTTP, file I/O, and timers
     // https://github.com/mystralengine/library-builder/releases
-    version: 'libuv-1.51.0-5',
+    version: 'libuv-1.51.0-7',
     getUrl: () => {
-      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/libuv-1.51.0-5';
+      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/libuv-1.51.0-7';
       if (platformName === 'macos') {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/libuv-mac-${arch}.zip`;
@@ -361,9 +369,9 @@ const DEPS = {
     // Draco mesh compression library for native C++ decoding
     // Bypasses WASM/Worker entirely for Draco-compressed glTF meshes
     // https://github.com/mystralengine/library-builder/releases
-    version: 'draco-1.5.7-2',
+    version: 'draco-1.5.7-3',
     getUrl: () => {
-      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/draco-1.5.7-2';
+      const baseUrl = 'https://github.com/mystralengine/library-builder/releases/download/draco-1.5.7-3';
       if (platformName === 'macos') {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/draco-mac-${arch}.zip`;
