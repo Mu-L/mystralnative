@@ -179,23 +179,40 @@ jobs:
   # =============================================================================
   build-linux:
     # Use Ubuntu 24.04 to match CI and prebuilt libuv dependencies (glibc 2.39)
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - js_engine: quickjs
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: quickjs
             webgpu: wgpu
             name: linux-x64-quickjs-wgpu
-          - js_engine: v8
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: v8
             webgpu: wgpu
             name: linux-x64-v8-wgpu
-          - js_engine: quickjs
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: quickjs
             webgpu: dawn
             name: linux-x64-quickjs-dawn
-          - js_engine: v8
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: v8
             webgpu: dawn
             name: linux-x64-v8-dawn
+          # Linux arm64 (Raspberry Pi 5, Ampere/Graviton, Nvidia/Qualcomm arm64).
+          # QuickJS + wgpu only: kuoruan/libv8 publishes no aarch64 Linux V8 and
+          # google/dawn publishes no aarch64 Linux binary, so those two combos
+          # cannot be built from prebuilts. wgpu-native does ship linux-aarch64.
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            js_engine: quickjs
+            webgpu: wgpu
+            name: linux-arm64-quickjs-wgpu
 
     name: Build - ${{ matrix.name }}
 
@@ -229,7 +246,7 @@ jobs:
         id: cache-deps
         with:
           path: third_party
-          key: deps-linux-x64-${{ matrix.webgpu }}-v5-${{ hashFiles('scripts/download-deps.mjs') }}
+          key: deps-linux-${{ matrix.arch }}-${{ matrix.webgpu }}-v5-${{ hashFiles('scripts/download-deps.mjs') }}
 
       - name: Download base dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
@@ -513,6 +530,15 @@ jobs:
             | V8 | wgpu | `mystral-linux-x64-v8-wgpu.zip` |
             | QuickJS | Dawn | `mystral-linux-x64-quickjs-dawn.zip` |
             | V8 | Dawn | `mystral-linux-x64-v8-dawn.zip` |
+
+            **Linux (ARM64 - Raspberry Pi 5, Ampere, Graviton):**
+            | JS Engine | WebGPU Backend | Download |
+            |-----------|----------------|----------|
+            | QuickJS | wgpu | `mystral-linux-arm64-quickjs-wgpu.zip` |
+
+            > V8 and Dawn are not offered on Linux ARM64: neither project
+            > publishes an aarch64 Linux prebuilt. Requires a Vulkan 1.1+ driver
+            > (e.g. Mesa v3dv on Raspberry Pi 5).
 
             **Windows (x64):**
             | JS Engine | WebGPU Backend | Download |

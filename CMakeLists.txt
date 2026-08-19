@@ -655,7 +655,12 @@ else()
         endif()
     else()
         set(SKIA_PLATFORM_DIR "linux-gpu")
-        set(SKIA_LIB_SUBDIR "x64")
+        # build-skia.py lays Linux libs out as linux-gpu/lib/Release/<arch>/
+        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(SKIA_LIB_SUBDIR "arm64")
+        else()
+            set(SKIA_LIB_SUBDIR "x64")
+        endif()
     endif()
 endif()
 

@@ -159,28 +159,44 @@ jobs:
     if: ${{ inputs.build_filter == 'all' || inputs.build_filter == 'linux-only' }}
     # Use Ubuntu 24.04 to match pre-built Skia libraries
     # Note: Pre-built Skia uses newer glibc symbols, so binaries require Ubuntu 24.04+
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         include:
           # Linux x64 - QuickJS + wgpu (default)
-          - js_engine: quickjs
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: quickjs
             webgpu: wgpu
             name: linux-x64-quickjs-wgpu
           # Linux x64 - V8 + wgpu
-          - js_engine: v8
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: v8
             webgpu: wgpu
             name: linux-x64-v8-wgpu
           # Linux x64 - QuickJS + Dawn
-          - js_engine: quickjs
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: quickjs
             webgpu: dawn
             name: linux-x64-quickjs-dawn
           # Linux x64 - V8 + Dawn
-          - js_engine: v8
+          - os: ubuntu-24.04
+            arch: x64
+            js_engine: v8
             webgpu: dawn
             name: linux-x64-v8-dawn
+          # Linux arm64 - QuickJS + wgpu.
+          # V8 and Dawn have no aarch64 Linux prebuilts (kuoruan/libv8 and
+          # google/dawn are x64-only), so arm64 builds the QuickJS + wgpu combo.
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            js_engine: quickjs
+            webgpu: wgpu
+            name: linux-arm64-quickjs-wgpu
 
     name: Build - ${{ matrix.name }}
 
@@ -220,7 +236,7 @@ jobs:
         id: cache-deps
         with:
           path: third_party
-          key: deps-linux-x64-${{ matrix.webgpu }}-v5-${{ hashFiles('scripts/download-deps.mjs') }}
+          key: deps-linux-${{ matrix.arch }}-${{ matrix.webgpu }}-v5-${{ hashFiles('scripts/download-deps.mjs') }}
 
       - name: Download base dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'

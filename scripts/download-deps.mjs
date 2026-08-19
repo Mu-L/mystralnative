@@ -45,6 +45,16 @@ const ARCH_MAP = {
 const platformName = PLATFORM_MAP[PLATFORM] || PLATFORM;
 const archName = ARCH_MAP[ARCH] || ARCH;
 
+// Short arch slug used by mystralengine/library-builder release assets
+// (e.g. libuv-linux-x64.zip / libuv-linux-arm64.zip).
+const LB_ARCH = ARCH === 'arm64' ? 'arm64' : 'x64';
+
+// Skia for linux-aarch64 is built by mystralengine/library-builder rather than
+// olilarkin/skia-builder, which publishes no linux-arm64 asset. Set to the
+// release tag once a linux-arm64 Skia build has been published; while it is
+// empty, arm64 Linux simply builds without Canvas 2D.
+const SKIA_LINUX_ARM64_TAG = '';
+
 console.log(`Platform: ${platformName}-${archName}`);
 
 // Dependency versions and URLs
@@ -106,6 +116,12 @@ const DEPS = {
         const variant = ARCH === 'arm64' ? 'macos-latest' : 'macos-15-intel';
         return `https://github.com/google/dawn/releases/download/${DEPS.dawn.version}/Dawn-${commit}-${variant}-Release.tar.gz`;
       } else if (platformName === 'linux') {
+        // google/dawn only publishes an x64 Linux binary (ubuntu-latest). There is
+        // no aarch64 asset, so linux-arm64 has to use the wgpu-native backend.
+        if (ARCH !== 'x64') {
+          console.warn(`Dawn prebuilts not available for ${platformName}-${archName} (google/dawn ships x64 Linux only) - use -DMYSTRAL_USE_WGPU=ON`);
+          return null;
+        }
         return `https://github.com/google/dawn/releases/download/${DEPS.dawn.version}/Dawn-${commit}-ubuntu-latest-Release.tar.gz`;
       } else if (platformName === 'windows') {
         return `https://github.com/google/dawn/releases/download/${DEPS.dawn.version}/Dawn-${commit}-windows-latest-Release.tar.gz`;
@@ -130,7 +146,12 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x64';
         return `https://github.com/kuoruan/libv8/releases/download/${DEPS.v8.version}/v8_macOS_${arch}.tar.xz`;
       } else if (platformName === 'linux') {
-        // Only x64 available for Linux
+        // kuoruan/libv8 only publishes v8_Linux_x64; no aarch64 build exists,
+        // so linux-arm64 has to use the QuickJS engine.
+        if (ARCH !== 'x64') {
+          console.warn(`V8 prebuilts not available for ${platformName}-${archName} (kuoruan/libv8 ships x64 Linux only) - use -DMYSTRAL_USE_QUICKJS=ON`);
+          return null;
+        }
         return `https://github.com/kuoruan/libv8/releases/download/${DEPS.v8.version}/v8_Linux_x64.tar.xz`;
       } else if (platformName === 'windows') {
         // Only x64 available for Windows (7z format)
@@ -167,11 +188,7 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/quiche-mac-${arch}.zip`;
       } else if (platformName === 'linux') {
-        if (ARCH !== 'x64') {
-          console.warn(`quiche prebuilts not available for ${platformName}-${archName}`);
-          return null;
-        }
-        return `${baseUrl}/quiche-linux-x64.zip`;
+        return `${baseUrl}/quiche-linux-${LB_ARCH}.zip`;
       } else if (platformName === 'windows') {
         if (ARCH !== 'x64') {
           console.warn(`quiche prebuilts not available for ${platformName}-${archName}`);
@@ -246,7 +263,8 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86-64';
         return `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${version}-mac-${arch}.tar.gz`;
       } else if (platformName === 'linux') {
-        return `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${version}-linux-x86-64.tar.gz`;
+        const arch = ARCH === 'arm64' ? 'aarch64' : 'x86-64';
+        return `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${version}-linux-${arch}.tar.gz`;
       } else if (platformName === 'windows') {
         return `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${version}-windows-x64.zip`;
       }
@@ -275,6 +293,16 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/skia-build-mac-${arch}-gpu-release.zip`;
       } else if (platformName === 'linux') {
+        if (ARCH === 'arm64') {
+          // olilarkin/skia-builder has no linux-arm64 asset; we build our own in
+          // mystralengine/library-builder (build-skia.py linux -archs arm64).
+          if (!SKIA_LINUX_ARM64_TAG) {
+            console.warn('Skia prebuilts not available for linux-aarch64 yet - Canvas 2D will be disabled.');
+            console.warn('  The rest of the runtime (WebGPU, GLTF, audio, input) builds and runs without it.');
+            return null;
+          }
+          return `https://github.com/mystralengine/library-builder/releases/download/${SKIA_LINUX_ARM64_TAG}/skia-build-linux-arm64-gpu-release.zip`;
+        }
         return `${baseUrl}/skia-build-linux-x64-gpu-release.zip`;
       } else if (platformName === 'windows') {
         return `${baseUrl}/skia-build-win-x64-gpu-release.zip`;
@@ -292,11 +320,7 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/swc-mac-${arch}.zip`;
       } else if (platformName === 'linux') {
-        if (ARCH !== 'x64') {
-          console.warn(`SWC prebuilts not available for ${platformName}-${archName}`);
-          return null;
-        }
-        return `${baseUrl}/swc-linux-x64.zip`;
+        return `${baseUrl}/swc-linux-${LB_ARCH}.zip`;
       } else if (platformName === 'windows') {
         if (ARCH !== 'x64') {
           console.warn(`SWC prebuilts not available for ${platformName}-${archName}`);
@@ -320,11 +344,7 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/libuv-mac-${arch}.zip`;
       } else if (platformName === 'linux') {
-        if (ARCH !== 'x64') {
-          console.warn(`libuv prebuilts not available for ${platformName}-${archName}`);
-          return null;
-        }
-        return `${baseUrl}/libuv-linux-x64.zip`;
+        return `${baseUrl}/libuv-linux-${LB_ARCH}.zip`;
       } else if (platformName === 'windows') {
         if (ARCH !== 'x64') {
           console.warn(`libuv prebuilts not available for ${platformName}-${archName}`);
@@ -348,11 +368,7 @@ const DEPS = {
         const arch = ARCH === 'arm64' ? 'arm64' : 'x86_64';
         return `${baseUrl}/draco-mac-${arch}.zip`;
       } else if (platformName === 'linux') {
-        if (ARCH !== 'x64') {
-          console.warn(`Draco prebuilts not available for ${platformName}-${archName}`);
-          return null;
-        }
-        return `${baseUrl}/draco-linux-x64.zip`;
+        return `${baseUrl}/draco-linux-${LB_ARCH}.zip`;
       } else if (platformName === 'windows') {
         if (ARCH !== 'x64') {
           console.warn(`Draco prebuilts not available for ${platformName}-${archName}`);

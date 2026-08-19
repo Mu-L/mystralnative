@@ -111,6 +111,13 @@ select_build() {
         JS_ENGINE="jsc"
         warn "Intel Mac detected. Using JSC engine (V8 not available for x64)."
         warn "Note: Requires macOS 14+ (Sonoma) due to Metal API requirements."
+    elif [ "$PLATFORM" = "linux-arm64" ]; then
+        # Neither kuoruan/libv8 nor google/dawn publishes an aarch64 Linux
+        # prebuilt, so ARM64 Linux ships the QuickJS + wgpu combination.
+        JS_ENGINE="quickjs"
+        WEBGPU_BACKEND="wgpu"
+        warn "Linux ARM64 detected. Using QuickJS + wgpu (V8 and Dawn have no aarch64 Linux builds)."
+        warn "Requires a Vulkan 1.1+ driver (e.g. Mesa v3dv on Raspberry Pi 5)."
     else
         JS_ENGINE="v8"
     fi
