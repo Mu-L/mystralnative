@@ -49,11 +49,11 @@ const archName = ARCH_MAP[ARCH] || ARCH;
 // (e.g. libuv-linux-x64.zip / libuv-linux-arm64.zip).
 const LB_ARCH = ARCH === 'arm64' ? 'arm64' : 'x64';
 
-// Skia for linux-aarch64 is built by mystralengine/library-builder rather than
-// olilarkin/skia-builder, which publishes no linux-arm64 asset. Set to the
-// release tag once a linux-arm64 Skia build has been published; while it is
-// empty, arm64 Linux simply builds without Canvas 2D.
-const SKIA_LINUX_ARM64_TAG = '';
+// Skia for linux-aarch64 comes from mystralengine/library-builder rather than
+// olilarkin/skia-builder, which publishes no linux-arm64 asset. Percent-encoded
+// because the tag contains a slash. Emptying this makes arm64 Linux build
+// without Canvas 2D rather than fail.
+const SKIA_LINUX_ARM64_TAG = 'chrome%2Fm145';
 
 console.log(`Platform: ${platformName}-${archName}`);
 
