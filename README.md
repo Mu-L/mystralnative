@@ -50,6 +50,9 @@ mystral run examples\triangle.js
 mystral run examples\mystral-helmet.js  # GLTF loading demo
 ```
 
+> [!NOTE]
+> Linux prebuilt binaries work with X11, but not with Wayland. Wayland is supported if you clone and build yourself (see "Build from Source" below). Currently tracking in [Issue 18](https://github.com/mystralengine/mystralnative/issues/18).
+
 ### Option 2: Download Prebuilt Binary
 
 Download the latest release for your platform from the [releases page](https://github.com/mystralengine/mystralnative/releases):
