@@ -1137,7 +1137,11 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                             size_t dataSize = 0;
                             void* dataPtr = g_engine->getArrayBufferData(args[2], &dataSize);
 
-                            if (!dataPtr || dataSize == 0) {
+                            if (dataSize == 0) {
+                                return g_engine->newUndefined();
+                            }
+
+                            if (!dataPtr) {
                                 g_engine->throwException("writeBuffer: invalid data");
                                 return g_engine->newUndefined();
                             }
@@ -2379,6 +2383,10 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                         auto attachment = g_engine->getPropertyIndex(colorAttachments, i);
                                         auto viewHandle = g_engine->getProperty(attachment, "view");
                                         WGPUTextureView view = (WGPUTextureView)g_engine->getPrivateData(viewHandle);
+                                        auto resolveTargetHandle = g_engine->getProperty(attachment, "resolveTarget");
+                                        WGPUTextureView resolveTarget = g_engine->isUndefined(resolveTargetHandle)
+                                            ? nullptr
+                                            : (WGPUTextureView)g_engine->getPrivateData(resolveTargetHandle);
 
                                         // Debug: Log first color attachment for comparison with g_currentTextureView
                                         if (i == 0) {
@@ -2389,7 +2397,7 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                             }
 
                                             // Track if this render pass uses the surface texture
-                                            if (view == g_currentTextureView && g_currentTextureView != nullptr) {
+                                            if ((view == g_currentTextureView || resolveTarget == g_currentTextureView) && g_currentTextureView != nullptr) {
                                                 g_surfaceRenderEncoder = encoderToUse;
                                                 g_surfaceRenderPassEnded = false;
                                             }
@@ -2445,6 +2453,7 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
 
                                         WGPURenderPassColorAttachment colorAttachment = {};
                                         colorAttachment.view = view;
+                                        colorAttachment.resolveTarget = resolveTarget;
                                         colorAttachment.loadOp = loadOp;
                                         colorAttachment.storeOp = storeOp;
                                         colorAttachment.clearValue = {r, g, b, a};
@@ -3520,6 +3529,8 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
 
                             std::vector<WGPUBindGroupLayoutEntry> layoutEntries;
                             layoutEntries.reserve(entryCount);
+                            std::vector<WGPUExternalTextureBindingLayout> externalTextureLayouts;
+                            externalTextureLayouts.reserve(entryCount);
 
                             for (int i = 0; i < entryCount; i++) {
                                 auto entry = g_engine->getPropertyIndex(entries, i);
@@ -3544,6 +3555,10 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                         // Default to uniform for unknown types
                                         layoutEntry.buffer.type = WGPUBufferBindingType_Uniform;
                                     }
+                                    std::cout << "[WebGPU] BindGroupLayout buffer binding "
+                                              << layoutEntry.binding << ": type='" << typeStr
+                                              << "', enum=" << static_cast<int>(layoutEntry.buffer.type)
+                                              << std::endl;
                                 }
 
                                 // Check for sampler binding
@@ -3617,6 +3632,16 @@ bool initBindings(js::Engine* engine, void* wgpuInstance, void* wgpuDevice, void
                                     } else {
                                         layoutEntry.storageTexture.viewDimension = WGPUTextureViewDimension_2D;
                                     }
+                                }
+
+                                // Check for external texture binding (WebGPU chain extension)
+                                auto externalTexture = g_engine->getProperty(entry, "externalTexture");
+                                if (!g_engine->isUndefined(externalTexture)) {
+                                    externalTextureLayouts.emplace_back();
+                                    auto& externalLayout = externalTextureLayouts.back();
+                                    externalLayout.chain.next = nullptr;
+                                    externalLayout.chain.sType = WGPUSType_ExternalTextureBindingLayout;
+                                    layoutEntry.nextInChain = &externalLayout.chain;
                                 }
 
                                 layoutEntries.push_back(layoutEntry);
